@@ -232,7 +232,6 @@ class Extractor_LLM:
             return (
                 self._extractor_chain(pydantic_object=pydantic_object, **chain_kwargs)
                 .predict(input=input)
-                .dict()
             )
         except Exception as e:
             print("Encountered exception during parsing input. See below:")
@@ -254,9 +253,7 @@ class Job_Post(Extractor_LLM):
             input=self.posting,
             **chain_kwargs,
         )
-        print(parsed_job)
-        print(job_skills)
-        self.parsed_job = parsed_job or job_skills
+        self.parsed_job = parsed_job | job_skills
         return self.parsed_job
 
 
