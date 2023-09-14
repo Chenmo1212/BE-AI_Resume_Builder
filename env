@@ -1,10 +1,10 @@
 ## After completing this file, save it as .env 
 
 # absolute location of directory on your host machine to be mounted on docker container. Directory may be the same as this project or any of its parents.
-CODE_DIR="/absolute/path/to/code/dir"
+CODE_DIR="./"
 
 # openAI API key
-OPENAI_API_KEY="sk-yourkey"
+OPENAI_API_KEY="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"
 
 ## Subsequent paramaters can be kept at their default values and are not needed to be changed.
 
