@@ -40,7 +40,7 @@ def read_yaml(yaml_text: str = "", filename: str = "") -> dict:
 
 
 def read_jobfile(filename: str) -> str:
-    with open(filename, "r") as stream:
+    with open(filename, "r", encoding='latin1') as stream:
         try:
             return stream.read().strip()
         except OSError as e:
@@ -51,7 +51,7 @@ def read_jobfile(filename: str) -> str:
 def write_yaml(d: dict, filename: str = None) -> None:
     yaml.allow_unicode = True
     if filename:
-        with open(filename, "w") as stream:
+        with open(filename, "w", encoding='latin1') as stream:
             try:
                 yaml.dump(d, stream)
             except YAMLError as e:
@@ -72,7 +72,7 @@ def dict_to_yaml_string(d: dict) -> str:
     return stream.getvalue()
 
 
-def generator_key_in_nested_dict(keys: [str | list], nested: dict):
+def generator_key_in_nested_dict(keys, nested):
     if hasattr(nested, "items"):
         for k, v in nested.items():
             if (isinstance(keys, list) and k in keys) or k == keys:

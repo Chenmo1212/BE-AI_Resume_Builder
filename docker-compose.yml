@@ -9,12 +9,12 @@ services:
     working_dir: "/home/${NB_USER}/work"
     environment:
       - NB_USER=${NB_USER}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_API_KEY=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
       - CHOWN_HOME=yes # needed to change NB_USER
     ports:
-      - 8888:${NB_PORT}
+      - 8888:8888
     volumes:
-      - "${CODE_DIR}:/home/${NB_USER}/work"
+      - "/www/wwwroot/test.chenmo1212.cn:/home/${NB_USER}/work"
     command: ["start-notebook.sh",
               "--NotebookApp.token='${NB_TOKEN}'",
               "--NotebookApp.password='${NB_PASSWORD}'"
