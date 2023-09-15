@@ -41,3 +41,126 @@ if __name__ == '__main__':
     )
     print(f"#filename: {job_filename}.job\n")
     utils.write_yaml(parsed_job, filename=f"{job_filename}.job")
+
+    # Step 2 - read raw resume and create Resume builder object
+    my_resume = Resume_Builder(
+        resume=utils.read_yaml(filename=os.path.join(my_files_dir, raw_resume_file)),
+        parsed_job=parsed_job,
+        llm_kwargs=llm_kwargs,
+    )
+    projects = my_resume.projects_raw
+    experiences = my_resume.experiences_raw
+    skills = my_resume.skills_raw
+
+    # # Step 3 - Rephrase unedited experiences. Try re-running cells in case of missing answers or hallucinations.
+    # experiences = my_resume.rewrite_unedited_experiences(verbose=False)
+    # utils.write_yaml(dict(experiences=experiences))
+
+    # Step 4 - Rephrase projects
+    # my_resume.experiences = experiences
+
+    projects = my_resume.rewrite_projects_desc(verbose=False)
+    utils.write_yaml(dict(projects=projects))
+
+    print("done")
+
+    # # Review the generated output in previous cell.
+    # # If any updates are needed, copy the cell output below between the triple quotes
+    # # Set value to """" """" if no edits are needed
+    # edits = """ """
+    #
+    # edits = edits.strip()
+    # if edits:
+    #     edits2 = utils.read_yaml(edits)
+    #     if "experiences" in edits2:
+    #         experiences = edits2["experiences"]
+    #     if "projects" in edits2:
+    #         projects = edits2["projects"]
+    #     if "skills" in edits2:
+    #         skills = edits2["skills"]
+    #     if "summary" in edits2:
+    #         summary = edits2["summary"]
+    #
+    # # Step 5 - Extract skills
+    # # This will match the required skills from the job post with your resume sections
+    # # Outputs a combined list of skills extracted from the job post and included in the raw resume
+    # my_resume.experiences = experiences
+    # my_resume.projects = projects
+    #
+    # skills = my_resume.extract_matched_skills(verbose=False)
+    # utils.write_yaml(dict(skills=skills))
+    #
+    # # Review the generated output in previous cell.
+    # # If any updates are needed, copy the cell output below between the triple quotes
+    # # Set value to """" """" if no edits are needed
+    # edits = """ """
+    #
+    # edits = edits.strip()
+    # if edits:
+    #     edits3 = utils.read_yaml(edits)
+    #     if "experiences" in edits3:
+    #         experiences = edits3["experiences"]
+    #     if "projects" in edits3:
+    #         projects = edits3["projects"]
+    #     if "skills" in edits3:
+    #         skills = edits3["skills"]
+    #     if "summary" in edits3:
+    #         summary = edits3["summary"]
+    #
+    # # Step 6 - Create a resume summary
+    # my_resume.experiences = experiences
+    # my_resume.skills = skills
+    # my_resume.projects = projects
+    #
+    # summary = my_resume.write_summary(
+    #     verbose=True,
+    # )
+    # utils.write_yaml(dict(summary=summary))
+    #
+    # # Review the generated output in previous cell.
+    # # If any updates are needed, copy the cell output below between the triple quotes
+    # # Set value to """" """" if no edits are needed.
+    # edits = """ """
+    #
+    # edits = edits.strip()
+    # if edits:
+    #     edits4 = utils.read_yaml(edits)
+    #     if "experiences" in edits4:
+    #         experiences = edits4["experiences"]
+    #     if "projects" in edits4:
+    #         projects = edits4["projects"]
+    #     if "skills" in edits4:
+    #         skills = edits4["skills"]
+    #     if "summary" in edits4:
+    #         summary = edits4["summary"]
+    #
+    # # Step 7 - Generate final resume yaml for review
+    # my_resume.summary = summary
+    # my_resume.experiences = experiences
+    # my_resume.projects = projects
+    # my_resume.skills = skills
+    #
+    # today_date = datetime.today().strftime("%Y%m%d")
+    # resume_filename = os.path.join(
+    #     my_files_dir, sanitize_filename(f"{today_date}__{company_name}__{job_title}")
+    # )
+    # resume_final = my_resume.finalize()
+    # print(f"#filename: {resume_filename}.yaml\n")
+    # utils.write_yaml(resume_final, filename=f"{resume_filename}.yaml")
+    #
+    # # Step 8 - Identify resume improvements
+    # # A previously generated resume can also be used here by manually providing resume_filename. Requires the associated parsed job file.
+    # final_resume = Resume_Builder(
+    #     resume=utils.read_yaml(filename=f"{resume_filename}.yaml"),
+    #     parsed_job=utils.read_yaml(filename=f"{resume_filename}.job"),
+    #     is_final=True,
+    #     llm_kwargs=llm_kwargs,
+    # )
+    # improvements = final_resume.suggest_improvements(verbose=True)
+    # utils.write_yaml(dict(improvements=improvements))
+
+    # Step 9 - Generate pdf from yaml
+    # Most common errors during pdf generation occur due to special characters. Escape them with backslashes in the yaml, e.g. $ -> \$
+    # pdf_file = utils.generate_pdf(yaml_file=f"{resume_filename}.yaml")
+    # display(Markdown((f"[{pdf_file}](<{pdf_file}>)")))
+    # utils.generate_new_tex(yaml_file=f"{resume_filename}.yaml")
