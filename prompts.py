@@ -2,6 +2,7 @@ import logging
 import os
 from datetime import datetime
 from typing import List
+import time
 
 import langchain
 from dateutil import parser as dateparser
@@ -231,7 +232,7 @@ class Extractor_LLM:
         try:
             return (
                 self._extractor_chain(pydantic_object=pydantic_object, **chain_kwargs)
-                .predict(input=input)
+                    .predict(input=input)
             )
         except Exception as e:
             print("Encountered exception during parsing input. See below:")
@@ -260,11 +261,11 @@ class Job_Post(Extractor_LLM):
 
 class Resume_Builder(Extractor_LLM):
     def __init__(
-        self,
-        resume: dict,
-        parsed_job: dict,
-        is_final: bool = False,
-        llm_kwargs: dict = dict(),
+            self,
+            resume: dict,
+            parsed_job: dict,
+            is_final: bool = False,
+            llm_kwargs: dict = dict(),
     ):
         super().__init__()
 
@@ -309,17 +310,17 @@ class Resume_Builder(Extractor_LLM):
             HumanMessagePromptTemplate.from_template("<Master Resume>{section}"),
             HumanMessage(
                 content="<Instruction> Identify the relevant portions from the <Master Resume> that match the <Job Posting>, "
-                "rephrase these relevant portions into highlights, and rate the relevance of each highlight to the <Job Posting> on a scale of 1-5."
+                        "rephrase these relevant portions into highlights, and rate the relevance of each highlight to the <Job Posting> on a scale of 1-5."
             ),
             HumanMessage(
                 content="<Criteria> "
-                "\n- Each highlight must be based on what is mentioned in the <Master Resume>."
+                        "\n- Each highlight must be based on what is mentioned in the <Master Resume>."
                 # "\n- Include highlights from <Master Resume> that may be tangentially related to the <Job Posting>."
                 # "\n- Combine any similar highlights into a single one."
-                "\n- In each highlight, include how that experience in the <Master Resume> demonstrates an ability to perform duties mentioned in the <Job Posting>."
-                "\n- In each highlight, try to include action verbs, give tangible and concrete examples, and include success metrics when available."
+                        "\n- In each highlight, include how that experience in the <Master Resume> demonstrates an ability to perform duties mentioned in the <Job Posting>."
+                        "\n- In each highlight, try to include action verbs, give tangible and concrete examples, and include success metrics when available."
                 # "\n- Each highlight must exceed 50 words, and may include more than 1 sentence."
-                "\n- Grammar, spellings, and sentence structure must be correct."
+                        "\n- Grammar, spellings, and sentence structure must be correct."
             ),
             HumanMessage(
                 content=(
@@ -360,14 +361,14 @@ class Resume_Builder(Extractor_LLM):
             ),
             HumanMessage(
                 content="<Instruction> Extract technical and non-technical skills from the <Resume> "
-                "that match the skills required in the <Job Posting>."
+                        "that match the skills required in the <Job Posting>."
             ),
             HumanMessage(
                 content="<Criteria> "
-                "\n- Each skill must be based on what is mentioned in the <Resume>."
-                "\n- Technical skills are programming languages, technologies, and tools. Examples: Python, MS Office, Machine learning, Marketing, Optimization, GPT"
-                "\n- Non-technical skills are soft skills. Communication, Leadership, Adaptability, Teamwork, Problem solving, Critical thinking, Time management"
-                "\n- Each skill must be written in sentence case."
+                        "\n- Each skill must be based on what is mentioned in the <Resume>."
+                        "\n- Technical skills are programming languages, technologies, and tools. Examples: Python, MS Office, Machine learning, Marketing, Optimization, GPT"
+                        "\n- Non-technical skills are soft skills. Communication, Leadership, Adaptability, Teamwork, Problem solving, Critical thinking, Time management"
+                        "\n- Each skill must be written in sentence case."
             ),
             HumanMessage(
                 content=(
@@ -413,11 +414,11 @@ class Resume_Builder(Extractor_LLM):
             ),
             HumanMessage(
                 content="<Criteria>"
-                "\n- Summary must showcase that I will be ideal for the <Job Posting>."
-                "\n- Summary must not exceed 200 words."
-                "\n- Summary must highlight my skills and experiences."
-                "\n- Include any relevant keywords from the <Job Posting> that also describe my experience from the <Resume>."
-                "\n- Grammar, spellings, and sentence structure must be correct."
+                        "\n- Summary must showcase that I will be ideal for the <Job Posting>."
+                        "\n- Summary must not exceed 200 words."
+                        "\n- Summary must highlight my skills and experiences."
+                        "\n- Include any relevant keywords from the <Job Posting> that also describe my experience from the <Resume>."
+                        "\n- Grammar, spellings, and sentence structure must be correct."
             ),
             # HumanMessage(
             #     content="<Examples>"
@@ -476,14 +477,14 @@ class Resume_Builder(Extractor_LLM):
             ),
             HumanMessage(
                 content="<Instruction> Critique my <Resume>, and suggest how I can improve it "
-                "so it showcases that I am the ideal candidate who meets all the requirements of the <Job Posting>."
+                        "so it showcases that I am the ideal candidate who meets all the requirements of the <Job Posting>."
             ),
             HumanMessage(
                 content="<Criteria>"
-                "\n- Find any spelling or grammar errors in my <Resume>, and include suggestions to fix them."
-                "\n- Compile all your suggestions from <Work> into the <Final Answer>."
-                "\n- For each suggestion in the <Final Answer>, include the respective <Resume> section, what needs to be improved, and how to improve it."
-                "\n- In the <Final Answer>, include a section for Spelling and Grammar, including any suggestions for improvements."
+                        "\n- Find any spelling or grammar errors in my <Resume>, and include suggestions to fix them."
+                        "\n- Compile all your suggestions from <Work> into the <Final Answer>."
+                        "\n- For each suggestion in the <Final Answer>, include the respective <Resume> section, what needs to be improved, and how to improve it."
+                        "\n- In the <Final Answer>, include a section for Spelling and Grammar, including any suggestions for improvements."
             ),
             HumanMessage(
                 content=(
@@ -617,12 +618,17 @@ class Resume_Builder(Extractor_LLM):
             # create copy of raw experience to update
             exp = dict(exp_raw)
             experience_unedited = exp.pop("unedited", None)
+
+            start_time = time.time()
+            print(f"{exp['company']} Start: \n {experience_unedited}")
             if experience_unedited:
                 # rewrite experience using llm
                 exp["highlights"] = self.rewrite_section(
                     section=experience_unedited, **chain_kwargs
                 )
             result.append(exp)
+            end_time = time.time()
+            print(f"{exp['company']} End {end_time - start_time:.6f}: \n {exp['highlights']}")
 
         return result
 
@@ -631,7 +637,7 @@ class Resume_Builder(Extractor_LLM):
         for exp_raw in self.projects_raw:
             # create copy of raw project desc to update
             exp = dict(exp_raw)
-            desc = exp.pop("desc", None)
+            desc = exp.pop("description", None)
             skills = exp['skills']
             desc_combined = desc + " using " + skills
             if desc_combined:
