@@ -253,7 +253,8 @@ class Job_Post(Extractor_LLM):
             input=self.posting,
             **chain_kwargs,
         )
-        self.parsed_job = parsed_job | job_skills
+        if parsed_job or job_skills:
+            self.parsed_job = parsed_job | job_skills
         return self.parsed_job
 
 
@@ -551,6 +552,16 @@ class Resume_Builder(Extractor_LLM):
                 result.append(curr)
         return result
 
+    def _format_projects_for_prompt(self) -> list:
+        result = []
+        for proj in self.projects:
+            curr = ""
+            if "desc" in proj:
+                curr += format_list_as_string(proj["desc"], list_sep="\n  - ")
+                curr += "\n"
+                result.append(curr)
+        return result
+
     def _combine_skills_in_category(self, l1: list[str], l2: list[str]):
         """Combines l2 into l1 without lowercase duplicates"""
         # get lowercase items
@@ -641,7 +652,7 @@ class Resume_Builder(Extractor_LLM):
             **self.parsed_job,
             degrees=self.degrees,
             experiences=self._format_experiences_for_prompt(),
-            projects=self.projects,
+            projects=self._format_projects_for_prompt,
         )
         extracted_skills_unformatted = chain.predict(**chain_inputs)
         if "verbose" in chain_kwargs and chain_kwargs["verbose"]:
@@ -676,7 +687,7 @@ class Resume_Builder(Extractor_LLM):
             prompt_inputs=chain.prompt.input_variables,
             **self.parsed_job,
             degrees=self.degrees,
-            projects=self.projects,
+            projects=self._format_projects_for_prompt(),
             experiences=self._format_experiences_for_prompt(),
             skills=self._format_skills_for_prompt(self.skills),
         )
