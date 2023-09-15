@@ -62,7 +62,8 @@ def write_yaml(d: dict, filename: str = None) -> None:
                     f"The {filename} could not be written due to an unknown error."
                 )
                 raise e
-    return yaml.dump(d, sys.stdout)
+    stream = StringIO()
+    return yaml.dump(d, stream=stream)
 
 
 def dict_to_yaml_string(d: dict) -> str:
