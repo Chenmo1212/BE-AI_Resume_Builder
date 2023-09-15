@@ -7,6 +7,8 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 USER root
 
+#echo "11111"
+
 RUN apt-get update --yes && \
     apt-get install --yes --no-install-recommends \
     # Common useful utilities
@@ -38,6 +40,9 @@ RUN apt-get update --yes && \
     xclip && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
+#echo "22222"
+
+
 # Create alternative for nano -> nano-tiny
 RUN update-alternatives --install /usr/bin/nano nano /bin/nano-tiny 10
 
@@ -45,7 +50,7 @@ RUN update-alternatives --install /usr/bin/nano nano /bin/nano-tiny 10
 USER ${NB_UID}
 
 # Install following Python 3 packages with pip
-RUN pip install --no-cache-dir \
+RUN nohup pip install --no-cache-dir \
     'black' \
     'isort' \
     'langchain' \
@@ -53,4 +58,4 @@ RUN pip install --no-cache-dir \
     'pathvalidate' && \
     mamba clean --all -f -y && \
     fix-permissions "${CONDA_DIR}" && \
-    fix-permissions "/home/${NB_USER}"
+    fix-permissions "/home/${NB_USER}" 2>&1 &
