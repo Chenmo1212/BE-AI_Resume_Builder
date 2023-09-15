@@ -95,6 +95,39 @@ def get_dict_field(field: str, resume: dict):
     return None
 
 
+def generate_new_tex(yaml_file: str, template_file: str = None):
+    # set default template file. file location is relative to `templates` directory
+    if not template_file:
+        template_file = "resume.tex"
+
+    dirname, basename = os.path.split(yaml_file)
+    filename, ext = os.path.splitext(basename)
+    filename = os.path.join(dirname, filename)
+
+    # Set up jinja environment and template
+    env = Environment(
+        trim_blocks=True,
+        lstrip_blocks=True,
+        block_start_string="\BLOCK{",
+        block_end_string="}",
+        variable_start_string="\VAR{",
+        variable_end_string="}",
+        comment_start_string="\#{",
+        comment_end_string="}",
+        line_statement_prefix="%%",
+        line_comment_prefix="%#",
+        autoescape=False,
+        loader=FileSystemLoader("templates"),
+    )
+    template = env.get_template(template_file)
+
+    yaml_data = read_yaml(filename=yaml_file)
+    latex_string = template.render(**yaml_data)
+
+    with open(f"{filename}.tex", "wt") as stream:
+        stream.write(latex_string)
+
+
 def generate_pdf(yaml_file: str, template_file: str = None) -> str:
     # set default template file. file location is relative to `templates` directory
     if not template_file:
