@@ -615,6 +615,23 @@ class Resume_Builder(Extractor_LLM):
 
         return result
 
+    def rewrite_projects_desc(self, **chain_kwargs) -> dict:
+        result = []
+        for exp_raw in self.projects_raw:
+            # create copy of raw project desc to update
+            exp = dict(exp_raw)
+            desc = exp.pop("desc", None)
+            skills = exp['skills']
+            desc_combined = desc + " using " + skills
+            if desc_combined:
+                # rewrite project desc using llm
+                exp["highlights"] = self.rewrite_section(
+                    section=desc_combined, **chain_kwargs
+                )
+            result.append(exp)
+
+        return result
+
     def extract_matched_skills(self, **chain_kwargs) -> dict:
         chain = self._skills_matcher_chain(**chain_kwargs)
         # We don't use the skills provided in raw resume because the LLM focuses too much n them
