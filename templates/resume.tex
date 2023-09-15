@@ -68,7 +68,7 @@
 {\footnotesize
     \faicon{envelope} \href{mailto:\VAR{ basic.contact.email }}{\VAR{ basic.contact.email }} \hSpace
     \faicon{phone} \iconSpace \VAR{ basic.contact.phone }\hSpace 
-    \faicon{map-marker} \iconSpace \VAR{ basic.contact.address }\hSpace
+    \faicon{map-marker} \iconSpace \VAR{ basic.address }\hSpace
 }\\
 
 {\footnotesize
@@ -137,6 +137,22 @@
 
 % ------------- end experience ------------- %
 
+% ------------- skills ------------- %
+%% if (skills is defined and skills|length > 0):
+\section{\color{black} \textbf{Skills}}
+\secStartSpace
+\begin{addmargin}[0em]{1em}
+
+\begin{itemize}[leftmargin=1.5em]
+%% for category in skills:
+    \item \textbf{\VAR{ category.category }}: \VAR{ category.skills|join(', ') } \bulletSpace
+%% endfor
+\end{itemize}
+
+\end{addmargin}
+\secEndSpace
+%% endif
+% ------------- end skills ------------- %
 
 % ------------- projects ------------- %
 %% if projects is defined:
@@ -161,7 +177,7 @@
     \faicon{globe} \href{\VAR{ project.demoUrl }}{\underline{DEMO}}
     %% endif
 
-    \\\noindent \VAR{project.description} \spaceCollapse
+    \noindent \VAR{project.description} \spaceCollapse
     %% if project.highlights:
     \begin{itemize}[leftmargin=1.5em]
         %% for highlight in project.highlights:
@@ -173,23 +189,6 @@
 \end{addmargin}
 %% endif
 % ------------- end projects ------------- %
-
-% ------------- skills ------------- %
-%% if (skills is defined and skills|length > 0):
-\section{\color{black} \textbf{Skills}}
-\secStartSpace
-\begin{addmargin}[0em]{1em}
-
-\begin{itemize}[leftmargin=1.5em]
-%% for category in skills:
-    \item \textbf{\VAR{ category.category }}: \VAR{ category.skills|join(', ') } \bulletSpace
-%% endfor
-\end{itemize}
-
-\end{addmargin}
-\secEndSpace
-%% endif
-% ------------- end skills ------------- %
 
 % ------------- education ------------- %
 % 
