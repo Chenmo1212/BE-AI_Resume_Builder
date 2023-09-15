@@ -26,7 +26,7 @@ def read_yaml(yaml_text: str = "", filename: str = "") -> dict:
         except YAMLError as e:
             logger.error(f"The text could not be read.")
             raise e
-    with open(filename, "r") as stream:
+    with open(filename, "r", encoding='latin1') as stream:
         try:
             return yaml.load(stream)
         except YAMLError as e:
@@ -124,8 +124,9 @@ def generate_new_tex(yaml_file: str, template_file: str = None):
     yaml_data = read_yaml(filename=yaml_file)
     latex_string = template.render(**yaml_data)
 
-    with open(f"{filename}.tex", "wt") as stream:
+    with open(f"{filename}.tex", "wt", encoding='cp1252') as stream:
         stream.write(latex_string)
+    print("Done")
 
 
 def generate_pdf(yaml_file: str, template_file: str = None) -> str:
@@ -159,7 +160,7 @@ def generate_pdf(yaml_file: str, template_file: str = None) -> str:
     yaml_data = read_yaml(filename=yaml_file)
     latex_string = template.render(**yaml_data)
 
-    with open(f"{filename}.tex", "wt") as stream:
+    with open(f"{filename}.tex", "wt", encoding='latin1') as stream:
         stream.write(latex_string)
 
     # convert to pdf and clean up temp files
