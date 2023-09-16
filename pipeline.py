@@ -10,13 +10,17 @@ from prompts import Job_Post, Resume_Builder
 
 
 class Pipeline:
-    def __init__(self, job_path, raw_resume):
+    def __init__(self, job_path, raw_resume, openai_model_name="gpt-3.5-turbo"):
         self.job_path = job_path
         self.raw_resume_file = raw_resume
         self.parsed_job = None
         self.resume = None
         self.resume_filename = None
         self.folder = None
+        self.llm_kwargs = dict(
+            model_name=openai_model_name,
+            model_kwargs=dict(top_p=0.6, frequency_penalty=0.1),
+        )
 
     def _create_company_folder(self):
         if not os.path.exists(self.folder):
@@ -44,49 +48,72 @@ class Pipeline:
         print("=========== Start reading resume ===========")
         start_time = time.time()
 
+        if not self.parsed_job:
+            self.read_and_parse_job()
+
         self.resume = Resume_Builder(
             resume=utils.read_yaml(filename=os.path.join(self.raw_resume_file)),
             parsed_job=self.parsed_job,
-            llm_kwargs=llm_kwargs,
+            llm_kwargs=self.llm_kwargs,
         )
         print(f'Step 2: Read Resume Done. Time Using: {time.time() - start_time:.6f}')
 
-    def update_experiences(self):
+    def update_experiences(self, update_yaml=False) -> str:
         print("=========== Start updating experiences ===========")
         start_time = time.time()
-
+        if not self.resume:
+            self.read_resume()
         experiences = self.resume.rewrite_unedited_experiences(verbose=False)
-        experiences_yaml = utils.dict_to_yaml_string(dict(experiences=experiences))
-        self.update_resume_data(experiences_yaml)
+        if update_yaml:
+            experiences_yaml = utils.dict_to_yaml_string(dict(experiences=experiences))
+            self.update_resume_data(experiences_yaml)
         print(f'Step 3: Update Experiences Done. Time Using: {time.time() - start_time:.6f}')
+        return experiences
 
-    def update_projects(self):
+    def update_projects(self, update_yaml=False) -> str:
         print("=========== Start updating projects ===========")
         start_time = time.time()
+        if not self.resume:
+            self.read_resume()
         projects = self.resume.rewrite_projects_desc(verbose=False)
-        projects_yaml = utils.dict_to_yaml_string(dict(projects=projects))
-        self.update_resume_data(projects_yaml)
+        if update_yaml:
+            projects_yaml = utils.dict_to_yaml_string(dict(projects=projects))
+            self.update_resume_data(projects_yaml)
         print(f'Step 4: Update Projects Done. Time Using: {time.time() - start_time:.6f}')
+        return projects
 
-    def update_skills(self):
+    def update_skills(self, update_yaml=False) -> str:
+        """
+        This will match the required skills from the job post with your resume sections
+        Outputs a combined list of skills extracted from the job post and included in the raw resume
+        """
         print("=========== Start extracting skills ===========")
         start_time = time.time()
-        # This will match the required skills from the job post with your resume sections
-        # Outputs a combined list of skills extracted from the job post and included in the raw resume
         skills = self.resume.extract_matched_skills(verbose=False)
-        skills_yaml = utils.dict_to_yaml_string(dict(skills=skills))
-        self.update_resume_data(skills_yaml)
+        if update_yaml:
+            skills_yaml = utils.dict_to_yaml_string(dict(skills=skills))
+            self.update_resume_data(skills_yaml)
         print(f'Step 5: Extract Skills From Job Done. Time Using: {time.time() - start_time:.6f}')
+        return skills
 
-    def update_summary(self):
+    def update_summary(self, update_yaml=False) -> str:
         print("=========== Start updating summary ===========")
         start_time = time.time()
+        if not self.resume:
+            self.read_resume()
         summary = self.resume.write_summary(verbose=True)
-        summary_yaml = utils.dict_to_yaml_string(dict(summary=summary))
-        self.update_resume_data(summary_yaml)
+        if update_yaml:
+            summary_yaml = utils.dict_to_yaml_string(dict(summary=summary))
+            self.update_resume_data(summary_yaml)
         print(f'Step 6: Update Summary Done. Time Using: {time.time() - start_time:.6f}')
+        return summary
 
     def generate_resume_yaml(self):
+        if not self.parsed_job:
+            self.read_and_parse_job()
+        if not self.resume:
+            self.read_resume()
+
         self.resume_filename = os.path.join(
             self.folder,
             sanitize_filename(f"{self.parsed_job['job_title']}")
@@ -121,13 +148,15 @@ class Pipeline:
     def improve_final_resume(self):
         print("=========== Start improving final resume ===========")
         start_time = time.time()
-        # A previously generated resume can also be used here by manually providing resume_filename.
-        # Requires the associated parsed job file.
+
+        if not self.resume_filename:
+            self.generate_resume_yaml()
+
         final_resume = Resume_Builder(
             resume=utils.read_yaml(filename=f"{self.resume_filename}.yaml"),
             parsed_job=utils.read_yaml(filename=f"{self.resume_filename}.job"),
             is_final=True,
-            llm_kwargs=llm_kwargs,
+            llm_kwargs=self.llm_kwargs,
         )
         improvements = final_resume.suggest_improvements(verbose=True)
         improvements_yaml = utils.dict_to_yaml_string(dict(improvements=improvements))
@@ -179,20 +208,6 @@ if __name__ == '__main__':
     my_files_dir = "my_applications"  # location for all job and resume files
     job_file = "job.txt"  # filename with job post text. The entire job post can be pasted in this file, as is.
     raw_resume_file = "resume_raw.yaml"  # filename for raw resume yaml. See example in repo for instructions.
-
-    # Model for matching resume to job post (except extraction chains)
-    # gpt-4 is not publicly available yet and can be 20-30 times costlier than the default model gpt-3.5-turbo.
-    # Simple extraction chains are hardcoded to use the cheaper gpt-3.5 model.
-    # openai_model_name = "gpt-4"
-    openai_model_name = "gpt-3.5-turbo"
-
-    # temperature lower than 1 is preferred. temperature=0 returns deterministic output
-    temperature = 0.5
-
-    llm_kwargs = dict(
-        model_name=openai_model_name,
-        model_kwargs=dict(top_p=0.6, frequency_penalty=0.1),
-    )
 
     NOIR = Pipeline(job_path='my_applications/job.txt', raw_resume='my_applications/resume_raw.yaml')
     NOIR.main()
