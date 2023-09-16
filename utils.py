@@ -48,22 +48,19 @@ def read_jobfile(filename: str) -> str:
             raise e
 
 
-def write_yaml(d: dict, filename: str = None) -> None:
+def write_yaml(d: dict, filename: str) -> None:
     yaml.allow_unicode = True
-    if filename:
-        with open(filename, "w", encoding='latin1') as stream:
-            try:
-                yaml.dump(d, stream)
-            except YAMLError as e:
-                logger.error(f"The {filename} could not be written.")
-                raise e
-            except Exception as e:
-                logger.error(
-                    f"The {filename} could not be written due to an unknown error."
-                )
-                raise e
-    stream = StringIO()
-    return yaml.dump(d, stream=stream)
+    with open(filename, "w", encoding='latin1') as stream:
+        try:
+            yaml.dump(d, stream)
+        except YAMLError as e:
+            logger.error(f"The {filename} could not be written.")
+            raise e
+        except Exception as e:
+            logger.error(
+                f"The {filename} could not be written due to an unknown error."
+            )
+            raise e
 
 
 def dict_to_yaml_string(d: dict) -> str:
