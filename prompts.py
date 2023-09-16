@@ -26,12 +26,11 @@ logger = logging.getLogger(__name__)
 
 # confirm presence of openAI API key
 if "OPENAI_API_KEY" not in os.environ:
-    # logger.info(
-    #     "OPENAI_API_KEY not found in environment. User will be prompted to enter their key."
-    # )
-    # prompt = "Enter your OpenAI API key:"
-    # os.environ["OPENAI_API_KEY"] = input(prompt)
-    os.environ["OPENAI_API_KEY"] = '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'
+    logger.info(
+        "OPENAI_API_KEY not found in environment. User will be prompted to enter their key."
+    )
+    prompt = "Enter your OpenAI API key:"
+    os.environ["OPENAI_API_KEY"] = input(prompt)
 
 # Set up LLM cache
 langchain.llm_cache = InMemoryCache()
@@ -256,6 +255,8 @@ class Job_Post(Extractor_LLM):
         )
         if parsed_job or job_skills:
             self.parsed_job = parsed_job | job_skills
+        else:
+            print('parsed_job and job_skills are empty!')
         return self.parsed_job
 
 
