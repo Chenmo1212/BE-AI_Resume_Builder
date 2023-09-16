@@ -19,6 +19,13 @@ def get_year_difference(start_date, end_date):
         return ""  # Handle invalid date strings gracefully
 
 
+def _list_to_markdown(list_data: list) -> str:
+    res_str = ""
+    for item in list_data:
+        res_str += "* " + str(item) + "\n"
+    return res_str
+
+
 def yaml_to_json(yaml):
     raw_json = json.loads(json.dumps(yaml, indent=4))
 
@@ -33,11 +40,11 @@ def yaml_to_json(yaml):
     web_basic['email'] = raw_basic['contact']['email']
     web_basic['phone'] = raw_basic['contact']['phone']
     web_basic['url'] = ""
-    web_basic['summary'] = raw_json['summary']
+    web_basic['summary'] = raw_json.get('summary', "")
     web_basic['location'] = {}
     web_basic['location']['address'] = raw_basic['address']
     web_basic['location']['postalCode'] = ""
-    web_basic['location']['city'] = ""
+    web_basic['location']['city'] = raw_basic['address'].split(',')[0]
     web_basic['location']['countryCode'] = ""
     web_basic['location']['region'] = ""
     web_basic['relExp'] = ""
@@ -83,27 +90,29 @@ def yaml_to_json(yaml):
             "position": ', '.join(job['name'] for job in work['titles']),
             "url": "",
             "isWorkingHere": False,
-            "startDate": work['startdate'],
-            "endDate": work['enddate'],
+            "startDate": str(work['startdate']),
+            "endDate": str(work['enddate']),
             "years": get_year_difference(str(work['startdate']), str(work['enddate'])) + " years",
             "highlights": work.get('highlights', []),
-            "summary": ', '.join(work.get('highlights', []))
+            "summary": _list_to_markdown(work.get('highlights', []))
         })
     web_json['work'] = web_work
 
     # Education
     web_education = []
     for edu in raw_json['education']:
-        web_education.append({
+        web_edu = {
             'institution': edu['school'],
             'url': "",
-            'studyType': "",
-            'area': ', '.join(degree['names'] for degree in edu['degrees']),
-            'startdate': edu['startdate'],
-            'enddate': edu['enddate'],
-            'score': edu.get('score', ""),
-            'courses': edu.get('score', "")
-        })
+            'studyType': edu['type'],
+            'area': edu['area'],
+            'branch': edu['branch'],
+            'startDate': str(edu['startdate']),
+            'endDate': str(edu['enddate']),
+            'score': edu.get('gpa', ""),
+            'courses': edu.get('courses', [])
+        }
+        web_education.append(web_edu)
     web_json['education'] = web_education
 
     # activities
