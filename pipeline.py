@@ -1,4 +1,5 @@
 import os
+import time
 from datetime import datetime
 from IPython.display import display, Markdown
 from pathvalidate import sanitize_filename
@@ -8,146 +9,169 @@ import utils
 from prompts import Job_Post, Resume_Builder
 
 
-def read_and_parse_job():
-    job_post = Job_Post(
-        utils.read_jobfile(os.path.join(my_files_dir, job_file)),
-    )
-    parsed_job = job_post.parse_job_post(verbose=False)
+class Pipeline:
+    def __init__(self, job_path, raw_resume):
+        self.job_path = job_path
+        self.raw_resume_file = raw_resume
+        self.parsed_job = None
+        self.resume = None
+        self.resume_filename = None
+        self.folder = None
 
-    company_name = parsed_job["company"]
-    job_title = parsed_job["job_title"]
-    today_date = datetime.today().strftime("%Y%m%d")
-    job_filename = os.path.join(
-        my_files_dir, sanitize_filename(f"{today_date}__{company_name}__{job_title}")
-    )
-    # print(f"#filename: {job_filename}.job\n")
-    utils.write_yaml(parsed_job, filename=f"{job_filename}.job")
-    print(f'Step 1: Parsing Done: {job_filename}')
-    return parsed_job
+    def _create_company_folder(self):
+        if not os.path.exists(self.folder):
+            os.makedirs(self.folder)
 
+    def read_and_parse_job(self):
+        print("=========== Start parsing job information ===========")
+        start_time = time.time()
+        job_post = Job_Post(utils.read_jobfile(self.job_path))
+        self.parsed_job = job_post.parse_job_post(verbose=False)
 
-def read_resume(parsed_job):
-    my_resume = Resume_Builder(
-        resume=utils.read_yaml(filename=os.path.join(my_files_dir, raw_resume_file)),
-        parsed_job=parsed_job,
-        llm_kwargs=llm_kwargs,
-    )
-    print(f'Step 2: Read Resume Done.')
-    return my_resume
+        company_name = self.parsed_job["company"]
+        job_title = self.parsed_job["job_title"]
+        today_date = datetime.today().strftime("%Y%m%d")
+        root_path = self.job_path.split('/')[0]
+        self.folder = f"{root_path}/{today_date}__{company_name}__{job_title}"
+        self._create_company_folder()
 
+        job_filename = f"{self.folder}/{job_title}"
+        utils.write_yaml(self.parsed_job, filename=f"{job_filename}.job")
 
-def update_experiences(resume):
-    experiences = resume.rewrite_unedited_experiences(verbose=False)
-    utils.write_yaml(dict(experiences=experiences))
-    update_resume_data(resume)
-    print(f'Step 3: Update Experiences Done.')
+        print(f'Step 1: Parsing Done: {job_filename}. Time Using: {time.time() - start_time:.6f}')
 
+    def read_resume(self):
+        print("=========== Start reading resume ===========")
+        start_time = time.time()
 
-def update_projects(resume):
-    projects = resume.rewrite_projects_desc(verbose=False)
-    utils.write_yaml(dict(projects=projects))
-    update_resume_data(resume)
-    print(f'Step 4: Update Projects Done.')
+        self.resume = Resume_Builder(
+            resume=utils.read_yaml(filename=os.path.join(self.raw_resume_file)),
+            parsed_job=self.parsed_job,
+            llm_kwargs=llm_kwargs,
+        )
+        print(f'Step 2: Read Resume Done. Time Using: {time.time() - start_time:.6f}')
 
+    def update_experiences(self):
+        print("=========== Start updating experiences ===========")
+        start_time = time.time()
 
-def update_skills(resume):
-    # This will match the required skills from the job post with your resume sections
-    # Outputs a combined list of skills extracted from the job post and included in the raw resume
-    skills = resume.extract_matched_skills(verbose=False)
-    utils.write_yaml(dict(skills=skills))
-    update_resume_data(resume)
-    print(f'Step 5: Extract Skills From Job Done.')
+        experiences = self.resume.rewrite_unedited_experiences(verbose=False)
+        experiences_yaml = utils.dict_to_yaml_string(dict(experiences=experiences))
+        self.update_resume_data(experiences_yaml)
+        print(f'Step 3: Update Experiences Done. Time Using: {time.time() - start_time:.6f}')
 
+    def update_projects(self):
+        print("=========== Start updating projects ===========")
+        start_time = time.time()
+        projects = self.resume.rewrite_projects_desc(verbose=False)
+        projects_yaml = utils.dict_to_yaml_string(dict(projects=projects))
+        self.update_resume_data(projects_yaml)
+        print(f'Step 4: Update Projects Done. Time Using: {time.time() - start_time:.6f}')
 
-def update_summary(resume):
-    summary = resume.write_summary(verbose=True)
-    utils.write_yaml(dict(summary=summary))
-    update_resume_data(resume)
-    print(f'Step 6: Update Summary Done.')
+    def update_skills(self):
+        print("=========== Start extracting skills ===========")
+        start_time = time.time()
+        # This will match the required skills from the job post with your resume sections
+        # Outputs a combined list of skills extracted from the job post and included in the raw resume
+        skills = self.resume.extract_matched_skills(verbose=False)
+        skills_yaml = utils.dict_to_yaml_string(dict(skills=skills))
+        self.update_resume_data(skills_yaml)
+        print(f'Step 5: Extract Skills From Job Done. Time Using: {time.time() - start_time:.6f}')
 
+    def update_summary(self):
+        print("=========== Start updating summary ===========")
+        start_time = time.time()
+        summary = self.resume.write_summary(verbose=True)
+        summary_yaml = utils.dict_to_yaml_string(dict(summary=summary))
+        self.update_resume_data(summary_yaml)
+        print(f'Step 6: Update Summary Done. Time Using: {time.time() - start_time:.6f}')
 
-def update_resume_data(resume):
-    # Review the generated output in previous cell.
-    # If any updates are needed, copy the cell output below between the triple quotes
-    # Set value to """" """" if no edits are needed
-    edits = """ """
+    def generate_resume_yaml(self):
+        self.resume_filename = os.path.join(
+            self.folder,
+            sanitize_filename(f"{self.parsed_job['job_title']}")
+        )
+        resume_final = self.resume.finalize()
+        utils.write_yaml(resume_final, filename=f"{self.resume_filename}.yaml")
 
-    edits = edits.strip()
-    if edits:
-        new_edit = utils.read_yaml(edits)
-        if "experiences" in new_edit:
-            resume.experiences = new_edit["experiences"]
-        if "projects" in new_edit:
-            resume.projects = new_edit["projects"]
-        if "skills" in new_edit:
-            resume.skills = new_edit["skills"]
-        if "summary" in new_edit:
-            resume.summary = new_edit["summary"]
+    def update_resume_data(self, edits):
+        # Review the generated output in previous cell.
+        # If any updates are needed, copy the cell output below between the triple quotes
+        # Set value to """" """" if no edits are needed
+        edits = edits.strip()
+        updated = []
+        if edits:
+            new_edit = utils.read_yaml(edits)
+            if "experiences" in new_edit:
+                updated.append('experiences')
+                self.resume.experiences = new_edit["experiences"]
+            if "projects" in new_edit:
+                updated.append('projects')
+                self.resume.projects = new_edit["projects"]
+            if "skills" in new_edit:
+                updated.append('projects')
+                self.resume.skills = new_edit["skills"]
+            if "summary" in new_edit:
+                updated.append('summary')
+                self.resume.summary = new_edit["summary"]
 
+        self.generate_resume_yaml()
+        print(f"Successfully: {', '.join(updated)} updated successfully")
 
-def generate_resume_yaml(resume, parsed_job):
-    today_date = datetime.today().strftime("%Y%m%d")
-    resume_filename = os.path.join(
-        my_files_dir, sanitize_filename(f"{today_date}__{parsed_job['company']}__{parsed_job['job_title']}")
-    )
-    resume_final = resume.finalize()
-    utils.write_yaml(resume_final, filename=f"{resume_filename}.yaml")
-    print(f'Step 7: Generate Resume Yaml Done.')
-    return resume_filename
+    def improve_final_resume(self):
+        print("=========== Start improving final resume ===========")
+        start_time = time.time()
+        # A previously generated resume can also be used here by manually providing resume_filename.
+        # Requires the associated parsed job file.
+        final_resume = Resume_Builder(
+            resume=utils.read_yaml(filename=f"{self.resume_filename}.yaml"),
+            parsed_job=utils.read_yaml(filename=f"{self.resume_filename}.job"),
+            is_final=True,
+            llm_kwargs=llm_kwargs,
+        )
+        improvements = final_resume.suggest_improvements(verbose=True)
+        improvements_yaml = utils.dict_to_yaml_string(dict(improvements=improvements))
+        self.update_resume_data(improvements_yaml)
+        print(f'Step 8: Improve Final Resume Done. Time Using: {time.time() - start_time:.6f}')
 
+    def generate_tex(self):
+        print("=========== Start update experiences ===========")
+        utils.generate_new_tex(yaml_file=f"{self.resume_filename}.yaml")
 
-def update_resume(resume_filename):
-    # A previously generated resume can also be used here by manually providing resume_filename.
-    # Requires the associated parsed job file.
-    final_resume = Resume_Builder(
-        resume=utils.read_yaml(filename=f"{resume_filename}.yaml"),
-        parsed_job=utils.read_yaml(filename=f"{resume_filename}.job"),
-        is_final=True,
-        llm_kwargs=llm_kwargs,
-    )
-    improvements = final_resume.suggest_improvements(verbose=True)
-    utils.write_yaml(dict(improvements=improvements))
-    print(f'Step 8: Generate Resume Yaml Done.')
+    def generate_pdf(self):
+        print("=========== Start update experiences ===========")
+        # Most common errors during pdf generation occur due to special characters. Escape them with backslashes in the yaml, e.g. $ -> \$
+        pdf_file = utils.generate_pdf(yaml_file=f"{self.resume_filename}.yaml")
+        display(Markdown((f"[{pdf_file}](<{pdf_file}>)")))
 
+    def main(self):
+        # Step 1 - Read and parse job posting
+        self.read_and_parse_job()
 
-def generate_tex(resume_filename):
-    utils.generate_new_tex(yaml_file=f"{resume_filename}.yaml")
+        # Step 2 - read raw resume and create Resume builder object
+        self.read_resume()
 
+        # Step 3 - Rephrase unedited experiences. Try re-running cells in case of missing answers or hallucinations.
+        self.update_experiences()
 
-def generate_pdf(resume_filename):
-    # Most common errors during pdf generation occur due to special characters. Escape them with backslashes in the yaml, e.g. $ -> \$
-    pdf_file = utils.generate_pdf(yaml_file=f"{resume_filename}.yaml")
-    display(Markdown((f"[{pdf_file}](<{pdf_file}>)")))
+        # Step 4 - Rephrase projects
+        self.update_projects()
 
+        # Step 5 - Extract skills
+        self.update_skills()
 
-def pipeline():
-    # Step 1 - Read and parse job posting
-    parsed_job = read_and_parse_job()
+        # Step 6 - Create a resume summary
+        self.update_summary()
 
-    # Step 2 - read raw resume and create Resume builder object
-    my_resume = read_resume(parsed_job)
+        # Step 7 - Generate final resume yaml for review
+        self.generate_resume_yaml()
 
-    # Step 3 - Rephrase unedited experiences. Try re-running cells in case of missing answers or hallucinations.
-    update_experiences(my_resume)
+        # Step 8 - Identify resume improvements
+        self.improve_final_resume()
 
-    # Step 4 - Rephrase projects
-    update_projects(my_resume)
-
-    # Step 5 - Extract skills
-    update_skills(my_resume)
-
-    # Step 6 - Create a resume summary
-    update_summary(my_resume)
-
-    # Step 7 - Generate final resume yaml for review
-    resume_filename = generate_resume_yaml(my_resume, parsed_job)
-
-    # Step 8 - Identify resume improvements
-    update_resume(resume_filename)
-
-    # Step 9 - Generate pdf from yaml
-    # generate_pdf(resume_filename)
-    generate_tex(resume_filename)
+        # Step 9 - Generate pdf from yaml
+        # generate_pdf(resume_filename)
+        self.generate_tex()
 
 
 if __name__ == '__main__':
@@ -170,4 +194,5 @@ if __name__ == '__main__':
         model_kwargs=dict(top_p=0.6, frequency_penalty=0.1),
     )
 
-    pipeline()
+    NOIR = Pipeline(job_path='my_applications/job.txt', raw_resume='my_applications/resume_raw.yaml')
+    NOIR.main()
