@@ -627,25 +627,29 @@ class Resume_Builder(Extractor_LLM):
                     section=experience_unedited, **chain_kwargs
                 )
             result.append(exp)
-            end_time = time.time()
-            print(f"{exp['company']} End {end_time - start_time:.6f}: \n {exp['highlights']}")
+            print(f"{exp['company']} End {time.time() - start_time:.6f}: \n {exp['highlights']}")
 
         return result
 
     def rewrite_projects_desc(self, **chain_kwargs) -> dict:
         result = []
-        for exp_raw in self.projects_raw:
+        for proj_raw in self.projects_raw:
             # create copy of raw project desc to update
-            exp = dict(exp_raw)
-            desc = exp.pop("description", None)
-            skills = exp['skills']
-            desc_combined = desc + " using " + skills
-            if desc_combined:
+            proj = dict(proj_raw)
+            start_time = time.time()
+
+            unedited = proj.pop("unedited", None)
+            print(f"{proj['title']} Start: \n {unedited}")
+
+            if unedited:
+                skills = proj['skills']
+                desc_combined = unedited + " using " + skills
                 # rewrite project desc using llm
-                exp["highlights"] = self.rewrite_section(
+                proj["highlights"] = self.rewrite_section(
                     section=desc_combined, **chain_kwargs
                 )
-            result.append(exp)
+            result.append(proj)
+            print(f"{proj['title']} End {time.time() - start_time:.6f}: \n {proj['highlights']}")
 
         return result
 
