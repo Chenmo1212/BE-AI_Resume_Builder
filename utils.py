@@ -40,7 +40,7 @@ def read_yaml(yaml_text: str = "", filename: str = "") -> dict:
 
 
 def read_jobfile(filename: str) -> str:
-    with open(filename, "r", encoding='latin1') as stream:
+    with open(filename, "r", encoding='utf-8') as stream:
         try:
             return stream.read().strip()
         except OSError as e:
@@ -50,7 +50,7 @@ def read_jobfile(filename: str) -> str:
 
 def write_yaml(d: dict, filename: str) -> None:
     yaml.allow_unicode = True
-    with open(filename, "w", encoding='latin1') as stream:
+    with open(filename, "w", encoding='utf-8') as stream:
         try:
             yaml.dump(d, stream)
         except YAMLError as e:
@@ -122,7 +122,7 @@ def generate_new_tex(yaml_file: str, template_file: str = None):
     yaml_data = read_yaml(filename=yaml_file)
     latex_string = template.render(**yaml_data)
 
-    with open(f"{filename}.tex", "wt", encoding='cp1252') as stream:
+    with open(f"{filename}.tex", "wt", encoding='utf-8') as stream:
         stream.write(latex_string)
     print("Done")
 
@@ -158,7 +158,7 @@ def generate_pdf(yaml_file: str, template_file: str = None) -> str:
     yaml_data = read_yaml(filename=yaml_file)
     latex_string = template.render(**yaml_data)
 
-    with open(f"{filename}.tex", "wt", encoding='latin1') as stream:
+    with open(f"{filename}.tex", "wt", encoding='utf-8') as stream:
         stream.write(latex_string)
 
     # convert to pdf and clean up temp files
