@@ -3,6 +3,7 @@ import os
 from datetime import datetime
 from typing import List
 import time
+from dotenv import load_dotenv
 
 import langchain
 from dateutil import parser as dateparser
@@ -21,16 +22,21 @@ from pydantic import BaseModel, Field
 
 import utils
 
+load_dotenv()
+
 # create logger
 logger = logging.getLogger(__name__)
 
 # confirm presence of openAI API key
 if "OPENAI_API_KEY" not in os.environ:
-    logger.info(
-        "OPENAI_API_KEY not found in environment. User will be prompted to enter their key."
-    )
-    prompt = "Enter your OpenAI API key:"
-    os.environ["OPENAI_API_KEY"] = input(prompt)
+    if os.getenv("OPENAI_API_KEY"):
+        os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
+    else:
+        logger.info(
+            "OPENAI_API_KEY not found in environment. User will be prompted to enter their key."
+        )
+        prompt = "Enter your OpenAI API key:"
+        os.environ["OPENAI_API_KEY"] = input(prompt)
 
 # Set up LLM cache
 langchain.llm_cache = InMemoryCache()
@@ -281,6 +287,7 @@ class Resume_Builder(Extractor_LLM):
         self.experiences = utils.get_dict_field(field="experiences", resume=self.resume)
         self.skills = utils.get_dict_field(field="skills", resume=self.resume)
         self.summary = utils.get_dict_field(field="summary", resume=self.resume)
+        self.achievements = utils.get_dict_field(field="achievements", resume=self.resume)
         if not is_final:
             self.experiences_raw = self.experiences
             self.experiences = None
