@@ -64,6 +64,7 @@ class Pipeline:
         if not self.resume:
             self.read_resume()
         experiences = self.resume.rewrite_unedited_experiences(verbose=False)
+        self.resume.experiences = experiences
         if update_yaml:
             experiences_yaml = utils.dict_to_yaml_string(dict(experiences=experiences))
             self.update_resume_data(experiences_yaml)
@@ -76,6 +77,7 @@ class Pipeline:
         if not self.resume:
             self.read_resume()
         projects = self.resume.rewrite_projects_desc(verbose=False)
+        self.resume.projects = projects
         if update_yaml:
             projects_yaml = utils.dict_to_yaml_string(dict(projects=projects))
             self.update_resume_data(projects_yaml)
@@ -90,6 +92,7 @@ class Pipeline:
         print("=========== Start extracting skills ===========")
         start_time = time.time()
         skills = self.resume.extract_matched_skills(verbose=False)
+        self.resume.skills = skills
         if update_yaml:
             skills_yaml = utils.dict_to_yaml_string(dict(skills=skills))
             self.update_resume_data(skills_yaml)
@@ -102,6 +105,7 @@ class Pipeline:
         if not self.resume:
             self.read_resume()
         summary = self.resume.write_summary(verbose=True)
+        self.resume.summary = summary
         if update_yaml:
             summary_yaml = utils.dict_to_yaml_string(dict(summary=summary))
             self.update_resume_data(summary_yaml)
