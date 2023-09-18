@@ -26,7 +26,7 @@ def read_yaml(yaml_text: str = "", filename: str = "") -> dict:
         except YAMLError as e:
             logger.error(f"The text could not be read.")
             raise e
-    with open(filename, "r", encoding='latin1') as stream:
+    with open(filename, "r", encoding='utf-8') as stream:
         try:
             return yaml.load(stream)
         except YAMLError as e:
