@@ -1,9 +1,10 @@
 from utils import read_yaml
 import json
+import re
 from datetime import datetime
 
 
-def get_year_difference(start_date, end_date):
+def get_date_difference(start_date: str, end_date: str) -> str:
     try:
         # Convert the date strings to datetime objects
         date1 = datetime.strptime(start_date, "%Y.%m")
@@ -12,17 +13,26 @@ def get_year_difference(start_date, end_date):
         # Calculate the difference in years
         year_difference = abs(date1.year - date2.year)
         month_difference = abs(date1.month - date2.month)
-        formatted_result = "{:.2f}".format(year_difference + month_difference / 12)
 
+        if year_difference >= 1:
+            formatted_result = "{:.1f}".format(year_difference + month_difference / 12) + " years"
+        else:
+            formatted_result = str(month_difference) + " months"
         return str(formatted_result)
     except ValueError:
         return ""  # Handle invalid date strings gracefully
 
 
+def format_date(date: str) -> str:
+    tmp_date = datetime.strptime(date, "%Y.%m")
+    return f'{str(tmp_date.month)}/{str(tmp_date.year)}'
+
+
 def _list_to_markdown(list_data: list) -> str:
     res_str = ""
     for item in list_data:
-        res_str += "* " + str(item) + "\n"
+        res_item = re.sub(r'Highlight \d+:', '', str(item))
+        res_str += "* " + res_item + "\n"
     return res_str
 
 
@@ -36,6 +46,7 @@ def yaml_to_json(yaml):
     raw_basic = raw_json['basic']
     web_basic['name'] = raw_basic['name']
     web_basic['label'] = raw_basic.get('label', "")
+    web_basic['bio'] = raw_basic['bio']
     web_basic['image'] = ""
     web_basic['email'] = raw_basic['contact']['email']
     web_basic['phone'] = raw_basic['contact']['phone']
@@ -87,12 +98,12 @@ def yaml_to_json(yaml):
         web_work.append({
             "id": "1",
             "name": work['company'],
-            "position": ', '.join(job['name'] for job in work['titles']),
+            "position": ' | '.join(job['name'] for job in work['titles']),
             "url": "",
             "isWorkingHere": False,
-            "startDate": str(work['startdate']),
-            "endDate": str(work['enddate']),
-            "years": get_year_difference(str(work['startdate']), str(work['enddate'])) + " years",
+            "startDate": format_date(str(work['startdate'])),
+            "endDate": format_date(str(work['enddate'])),
+            "years": get_date_difference(str(work['startdate']), str(work['enddate'])),
             "highlights": work.get('highlights', []),
             "summary": _list_to_markdown(work.get('highlights', []))
         })
@@ -107,8 +118,8 @@ def yaml_to_json(yaml):
             'studyType': edu['type'],
             'area': edu['area'],
             'branch': edu['branch'],
-            'startDate': str(edu['startdate']),
-            'endDate': str(edu['enddate']),
+            'startDate': format_date(str(edu['startdate'])),
+            'endDate': format_date(str(edu['enddate'])),
             'score': edu.get('gpa', ""),
             'courses': edu.get('courses', [])
         }
@@ -116,35 +127,36 @@ def yaml_to_json(yaml):
     web_json['education'] = web_education
 
     # activities
-    web_activities = {"involvements": "", "projects": [], "achievements": ""}
-    for proj in raw_json['projects']:
-        web_activities['projects'].append(proj)
+    web_activities = {"involvements": "", "achievements": ""}
+    achievements = ""
+    for award in raw_json.get('achievements', []):
+        achievements += f"* {award['year']}: {award['title']} ({award['money']})\n"
+    web_activities['achievements'] = achievements
+
     web_json['activities'] = web_activities
 
-    web_json['volunteer'] = []
-    web_json['awards'] = []
-
-    for award in raw_json.get('achievements', []):
-        web_json['awards'].append({
-            "title": award['title'],
-            "date": award['year'],
-            "awarder": "",
-            "summary": "",
-            "id": award['title'],
+    web_json['projects'] = []
+    for proj in raw_json['projects']:
+        web_json['projects'].append({
+            **proj,
+            'summary': f"* **Skills**: {proj['skills']} \n" + _list_to_markdown(proj.get('highlights', []))
         })
+    web_json['volunteer'] = raw_json.get("volunteer", [])
+    web_json['awards'] = raw_json.get("awards", [])
 
     return web_json
 
 
 def main():
     # yaml_data = read_yaml(filename='./my_applications/resume_raw.yaml')
-    yaml_data = read_yaml(filename='my_applications/20230916__NOIR__VueJS Developer/VueJS Developer.yaml')
+    # yaml_data = read_yaml(filename='my_applications/20230916__NOIR__VueJS Developer/VueJS Developer.yaml')
+    yaml_data = read_yaml(filename='my_applications/20230917__Solas IT Recruitment__Frontend React Developer.yaml')
     print(yaml_data)
     json_data = yaml_to_json(yaml_data)
     print(json_data)
 
     # Write the data to the JSON file
-    with open("data.json", "w") as json_file:
+    with open("data.json", "w", encoding="utf-8") as json_file:
         json.dump(json_data, json_file)
 
 
