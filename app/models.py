@@ -49,76 +49,56 @@ class Message:
         return mongo.db.messages.find({'is_show': True})
 
 
-class ResumeManager:
-    def __init__(self):
-        self.collection = mongo.db.resume
+def _convert_id_type(data):
+    if data is not None and '_id' in data:
+        data['_id'] = str(data['_id'])
+    return data
 
-    def create_resume(self, resume_data):
+
+class BaseManager:
+    def __init__(self, collection_name):
+        self.collection = mongo.db[collection_name]
+
+    def create(self, data):
         current_time = datetime.now()
-        resume_data.update({
+        data.update({
             "create_time": current_time,
             "update_time": current_time,
             "delete_time": None,
             "is_delete": False,
             "is_show": True
         })
-        result = self.collection.insert_one(resume_data)
+        result = self.collection.insert_one(data)
         return result.inserted_id
 
-    def update_resume(self, resume_id, update_data):
+    def update(self, document_id, update_data):
         current_time = datetime.now()
         update_data["update_time"] = current_time
-        result = self.collection.update_one({"_id": resume_id}, {"$set": update_data})
+        if '_id' in update_data:
+            del update_data['_id']
+
+        result = self.collection.update_one({"_id": ObjectId(document_id)}, {"$set": update_data})
         return result.modified_count
 
-    def delete_resume(self, resume_id):
+    def delete(self, document_id):
         current_time = datetime.now()
-        result = self.collection.update_one({"_id": resume_id},
+        result = self.collection.update_one({"_id": ObjectId(document_id)},
                                             {"$set": {"delete_time": current_time, "is_delete": True}})
         return result.modified_count
 
-    def get_resume(self, resume_id):
-        return self.collection.find_one({"_id": resume_id})
+    def get(self, document_id):
+        document_data = self.collection.find_one({"_id": ObjectId(document_id)})
+        return _convert_id_type(document_data)
 
-    def list_resumes(self):
-        return list(self.collection.find({"is_delete": False}))
-
-    def list_deleted_resumes(self):
-        return list(self.collection.find({"is_delete": True}))
+    def list(self):
+        return [_convert_id_type(doc) for doc in self.collection.find({"is_delete": False})]
 
 
-# Example usage:
-if __name__ == "__main__":
-    manager = ResumeManager("your_db_name", "your_collection_name")
+class ResumeManager(BaseManager):
+    def __init__(self):
+        super().__init__('resume')
 
-    # Create a new resume
-    resume_data = {
-        "basics": {},
-        "skills": {},
-        "work": [],
-        "education": [],
-        "activities": {},
-        "volunteer": [],
-        "awards": []
-    }
-    resume_id = manager.create_resume(resume_data)
-    print("Created Resume ID:", resume_id)
 
-    # Update the resume
-    update_data = {"basics": {"name": "John Doe"}}
-    manager.update_resume(resume_id, update_data)
-
-    # Get the resume
-    retrieved_resume = manager.get_resume(resume_id)
-    print("Retrieved Resume:", retrieved_resume)
-
-    # Delete the resume
-    manager.delete_resume(resume_id)
-
-    # List all active resumes and deleted resumes
-    active_resumes = manager.list_resumes()
-    deleted_resumes = manager.list_deleted_resumes()
-    print("Active Resumes:", active_resumes)
-    print("Deleted Resumes:", deleted_resumes)
-
-    manager.close_connection()
+class JobManager(BaseManager):
+    def __init__(self):
+        super().__init__('job')
