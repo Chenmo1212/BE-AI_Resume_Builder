@@ -281,7 +281,10 @@ class Resume_Builder(Extractor_LLM):
         self.llm_kwargs = llm_kwargs
 
         self.degrees = self._get_degrees(self.resume)
-        self.basic_info = utils.get_dict_field(field="basic", resume=self.resume)
+        self.basic_info = {
+            **utils.get_dict_field(field="basic", resume=self.resume),
+            'label': parsed_job['job_title']
+        }
         self.education = utils.get_dict_field(field="education", resume=self.resume)
         self.projects = utils.get_dict_field(field="projects", resume=self.resume)
         self.experiences = utils.get_dict_field(field="experiences", resume=self.resume)
@@ -299,7 +302,7 @@ class Resume_Builder(Extractor_LLM):
             self.projects = None
 
             self.summary_raw = self.summary
-            self.summary = None
+            self.summary = ""
 
     def _section_highlighter_chain(self, **chain_kwargs) -> LLMChain:
         prompt_msgs = [
@@ -318,16 +321,20 @@ class Resume_Builder(Extractor_LLM):
             HumanMessagePromptTemplate.from_template("<Master Resume>{section}"),
             HumanMessage(
                 content="<Instruction> Identify the relevant portions from the <Master Resume> that match the <Job Posting>, "
-                        "rephrase these relevant portions into highlights, and rate the relevance of each highlight to the <Job Posting> on a scale of 1-5."
+                        "and rephrase these relevant portions into highlights"
+                        # "and rate the relevance of each highlight to the <Job Posting> on a scale of 1-5."
             ),
             HumanMessage(
                 content="<Criteria> "
+                        "\n- Based on <Master Resume> to extract 3 - 4 highlights."
                         "\n- Each highlight must be based on what is mentioned in the <Master Resume>."
                 # "\n- Include highlights from <Master Resume> that may be tangentially related to the <Job Posting>."
                 # "\n- Combine any similar highlights into a single one."
                         "\n- In each highlight, include how that experience in the <Master Resume> demonstrates an ability to perform duties mentioned in the <Job Posting>."
                         "\n- In each highlight, try to include action verbs, give tangible and concrete examples, and include success metrics when available."
-                # "\n- Each highlight must exceed 50 words, and may include more than 1 sentence."
+                        "\n- Each highlight must exceed 50 words, and include 2 - 3 sentence."
+                        "\n- Make sure add more hard number in each highlight."
+                        "\n- Must avoid the overuse of specific action verbs."
                         "\n- Grammar, spellings, and sentence structure must be correct."
             ),
             HumanMessage(
@@ -376,6 +383,10 @@ class Resume_Builder(Extractor_LLM):
                         "\n- Each skill must be based on what is mentioned in the <Resume>."
                         "\n- Technical skills are programming languages, technologies, and tools. Examples: Python, MS Office, Machine learning, Marketing, Optimization, GPT"
                         "\n- Non-technical skills are soft skills. Communication, Leadership, Adaptability, Teamwork, Problem solving, Critical thinking, Time management"
+                        "\n- Review and identify skills that have similar or equivalent meanings, such as 'React.js,' 'React,' and 'ReactJS.'"
+                        "\n- Merge equivalent skills into a single representation to avoid redundancy and make the skills list more concise."
+                        "\n- Ensure that the merged representation is comprehensive and commonly recognized within the respective category."
+                        "\n- Update the skills list by replacing the redundant skills with their merged counterparts."
                         "\n- Each skill must be written in sentence case."
             ),
             HumanMessage(
@@ -422,11 +433,14 @@ class Resume_Builder(Extractor_LLM):
             ),
             HumanMessage(
                 content="<Criteria>"
-                        "\n- Summary must showcase that I will be ideal for the <Job Posting>."
-                        "\n- Summary must not exceed 200 words."
-                        "\n- Summary must highlight my skills and experiences."
-                        "\n- Include any relevant keywords from the <Job Posting> that also describe my experience from the <Resume>."
-                        "\n- Grammar, spellings, and sentence structure must be correct."
+                        "\n- The summary must reflect my strong work ethic, highlighting key adjectives"
+                        "\n- Specify the field in which I have expertise and mention the duration of my experience."
+                        "\n- The summary must feature my most impressive and relevant on-the-job achievement."
+                        "\n- Clearly articulate what I aim to achieve in this role, emphasizing how I will contribute to the company."
+                        "\n- The summary should be concise, comprising 3–4 sentences totaling 100–200 words."
+                        "\n- It should incorporate relevant keywords from the job posting that align with my resume."
+                        "\n- Mention the company's name and the specific job title in the summary to demonstrate customization."
+                        "\n- Ensure correct grammar, spelling, and sentence structure for a polished presentation."
             ),
             # HumanMessage(
             #     content="<Examples>"
@@ -595,7 +609,7 @@ class Resume_Builder(Extractor_LLM):
         message = "Final answer is missing from the chain output."
         if not chain_kwargs.get("verbose"):
             message += "\nChain output:\n" + chain_output_unformatted
-        print(message)
+        # print(message)
 
     def rewrite_section(self, section: list | str, **chain_kwargs) -> dict:
         chain = self._section_highlighter_chain(**chain_kwargs)
@@ -605,14 +619,14 @@ class Resume_Builder(Extractor_LLM):
             section=section,
         )
         section_revised_unformatted = chain.predict(**chain_inputs)
-        if "verbose" in chain_kwargs and chain_kwargs["verbose"]:
-            print("Chain output:\n" + section_revised_unformatted)
+        # if "verbose" in chain_kwargs and chain_kwargs["verbose"]:
+        #     print("Chain output:\n" + section_revised_unformatted)
         section_revised = self.extract_from_input(
             pydantic_object=Resume_Section_Highlighter_Output,
             input=section_revised_unformatted,
         )
         if not section_revised or "final_answer" not in section_revised:
-            self._print_debug_message(chain_kwargs, section_revised_unformatted)
+            # self._print_debug_message(chain_kwargs, section_revised_unformatted)
             return None
         # sort section based on relevance in descending order
         section_revised = sorted(
@@ -673,14 +687,14 @@ class Resume_Builder(Extractor_LLM):
             projects=self._format_projects_for_prompt,
         )
         extracted_skills_unformatted = chain.predict(**chain_inputs)
-        if "verbose" in chain_kwargs and chain_kwargs["verbose"]:
-            print("Chain output:\n" + extracted_skills_unformatted)
+        # if "verbose" in chain_kwargs and chain_kwargs["verbose"]:
+        #     print("Chain output:\n" + extracted_skills_unformatted)
         extracted_skills = self.extract_from_input(
             pydantic_object=Resume_Skills_Matcher_Output,
             input=extracted_skills_unformatted,
         )
         if not extracted_skills or "final_answer" not in extracted_skills:
-            self._print_debug_message(chain_kwargs, extracted_skills_unformatted)
+            # self._print_debug_message(chain_kwargs, extracted_skills_unformatted)
             return None
         extracted_skills = extracted_skills["final_answer"]
         result = []
@@ -710,13 +724,13 @@ class Resume_Builder(Extractor_LLM):
             skills=self._format_skills_for_prompt(self.skills),
         )
         summary_unformatted = chain.predict(**chain_inputs)
-        if "verbose" in chain_kwargs and chain_kwargs["verbose"]:
-            print("Chain output:\n" + summary_unformatted)
+        # if "verbose" in chain_kwargs and chain_kwargs["verbose"]:
+        #     print("Chain output:\n" + summary_unformatted)
         summary = self.extract_from_input(
             pydantic_object=Resume_Summarizer_Output, input=summary_unformatted
         )
         if not summary or "final_answer" not in summary:
-            self._print_debug_message(chain_kwargs, summary_unformatted)
+            # self._print_debug_message(chain_kwargs, summary_unformatted)
             return None
         return summary["final_answer"]
 
@@ -732,13 +746,13 @@ class Resume_Builder(Extractor_LLM):
             skills=utils.dict_to_yaml_string(dict(Skills=self.skills)),
         )
         improvements_unformatted = chain.predict(**chain_inputs)
-        if "verbose" in chain_kwargs and chain_kwargs["verbose"]:
-            print("Chain output:\n" + improvements_unformatted)
+        # if "verbose" in chain_kwargs and chain_kwargs["verbose"]:
+        #     print("Chain output:\n" + improvements_unformatted)
         improvements = self.extract_from_input(
             pydantic_object=Resume_Improver_Output, input=improvements_unformatted
         )
         if not improvements or "final_answer" not in improvements:
-            self._print_debug_message(chain_kwargs, improvements_unformatted)
+            # self._print_debug_message(chain_kwargs, improvements_unformatted)
             return None
         return improvements["final_answer"]
 
@@ -750,4 +764,5 @@ class Resume_Builder(Extractor_LLM):
             experiences=self.experiences,
             projects=self.projects,
             skills=self.skills,
+            achievements=self.achievements
         )
