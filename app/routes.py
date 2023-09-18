@@ -1,11 +1,15 @@
 from flask import jsonify, request
 from app import app, mongo
-from app.models import Message, ResumeManager, JobManager
+from app.models import Message, ResumeManager, JobManager, TaskManager
 from datetime import datetime
 import requests, json
 from bson import ObjectId
 import pymongo
 import os
+import logging
+
+# create logger
+logger = logging.getLogger(__name__)
 
 
 @app.route('/', methods=['GET'])
@@ -113,170 +117,36 @@ def list_jobs():
     return jsonify(jobs)
 
 
-# ============ User Api ============
-
-@app.route('/messages', methods=['GET'])
-def get_visible_list_api():
-    res = get_visible_list()
-    return jsonify(res)
-
-
-@app.route('/messages', methods=['POST'])
-def add_new_message_api():
-    res = add_new_message()
-    return jsonify(res)
-
-
-# ============ Admin Api ============
-
-@app.route('/admin/messages', methods=['GET'])
-def get_all_message_list_api():
-    res = get_all_message_list()
-    return jsonify(res)
-
-
-@app.route('/admin/messages/<string:message_id>/status', methods=['PUT'])
-def update_message_status_api(message_id):
-    res = update_message_status(message_id)
-    return jsonify(res)
-
-
-@app.route('/admin/messages/<string:message_id>', methods=['DELETE'])
-def update_message_api(message_id):
-    res = delete_message(message_id)
-    return jsonify(res)
-
-
-@app.route('/admin/messages/delete', methods=['POST'])
-def update_many_messages_api():
-    res = delete_many_message()
-    return jsonify(res)
-
-
-# ==================================== Functions ====================================
-
-def get_visible_list():
+@app.route('/task', methods=['POST'])
+def add_task():
     try:
-        messages = Message.get_visible_list()
+        data = request.get_json()
 
-        message_list = []
-        for message in messages:
-            message_dict = {
-                'id': str(message['_id']),
-                'name': message['name'],
-                'email': message['email'],
-                'content': message['content'],
-                'create_time': message['create_time'],
-            }
-            message_list.append(message_dict)
+        if 'resume_id' not in data and 'resume' not in data:
+            return jsonify({"error": str('Neither resume_id nor resume have been provided.')}), 400
+        if 'job_id' not in data and 'job_text' not in data:
+            return jsonify({"error": str('Neither job_id nor job_text have been provided.')}), 400
 
-        return {'data': message_list, 'status': 200}
-    except Exception as e:
-        return {'error': str(e), 'status': 500}
-
-
-def add_new_message():
-    try:
-        data = request.json
-
-        required_fields = ['name', 'email', 'content']
-        extracted_fields = {field: data.get(field, '') for field in required_fields}
-
-        additional_fields = {
-            'website': data.get('website', ''),
-            'agent': data.get('agent', ''),
-            'admin_time': data.get('admin_time'),
-            'create_time': data.get('create_time'),
-            'delete_time': data.get('delete_time'),
-            'update_time': data.get('update_time'),
-            'is_delete': data.get('is_delete', False),
-            'is_show': data.get('is_show', False)
-        }
-
-        message_data = {**extracted_fields, **additional_fields}
-
-        if all(extracted_fields.values()):
-            # Create a new Message instance with the merged data
-            message = Message(**message_data)
+        resume_manager = ResumeManager()
+        if 'resume_id' not in data:
+            if not isinstance(data['resume'], dict):
+                return jsonify({"error": str('Type of resume is not dict.')}), 400
+            resume_id = resume_manager.create(data['resume'])
         else:
-            return {'error': 'Missing required fields', 'status': 400}
-    except Exception as e:
-        return {'error': str(e), 'status': 500}
+            resume_id = data['resume_id']
 
-
-def get_all_message_list():
-    try:
-        messages = Message.get_all()
-
-        message_list = []
-        for message in messages:
-            message_dict = {key: message.get(key) for key in message}
-            message_dict["id"] = str(message_dict.pop("_id"))
-            message_list.append(message_dict)
-
-        return {'data': message_list, 'status': 200}
-    except Exception as e:
-        return {'error': str(e), 'status': 500}
-
-
-def update_message_status(message_id):
-    try:
-        obj = request.json
-        is_show = obj.get("is_show")
-        is_delete = obj.get("is_delete")
-
-        update_fields = {}
-        update_msg = ""
-
-        if is_show is not None:
-            update_fields["is_show"] = bool(is_show)
-            update_msg += f"is_show changed to {is_show}, "
-
-        if is_delete is not None:
-            update_fields["is_delete"] = bool(is_delete)
-            update_msg += f"is_delete changed to {is_delete}, "
-
-        if not update_fields:
-            return {'error': 'No valid fields provided for update', 'status': 400}
-
-        update_fields["admin_time"] = datetime.now()
-
-        result = mongo.db.messages.update_one(
-            {'_id': ObjectId(message_id)},
-            {'$set': update_fields}
-        )
-
-        if result.matched_count > 0:
-            response_msg = 'Message updated successfully'
-            if update_msg:
-                response_msg += ' (' + update_msg.rstrip(', ') + ')'
-            return {'msg': response_msg, 'status': 200}
+        job_manager = JobManager()
+        if 'job_id' not in data:
+            job_id = job_manager.create({'raw': data['job_text']})
         else:
-            return {'error': 'No document found to update', 'status': 404}
+            job_id = data['job_id']
 
+        task_manager = TaskManager()
+        task_id = task_manager.create({
+            'job_id': job_id,
+            'resume_id': resume_id
+        })
+
+        return jsonify({"message": "Task created successfully", "inserted_id": str(task_id)}), 201
     except Exception as e:
-        return {'error': 'Failed to update message. ' + str(e), 'status': 500}
-
-
-def delete_many_message():
-    try:
-        id_list = request.json['id_list']
-        if id_list:
-            object_ids = [ObjectId(item_id) for item_id in id_list]
-            result = mongo.db.messages.delete_many({'_id': {'$in': object_ids}})
-            return {'msg': f'Deleted {result.deleted_count} messages', 'status': 200}
-        else:
-            return {'error': 'Missing id_list field', 'status': 400}
-    except Exception as e:
-        return {'error': str(e), 'status': 500}
-
-
-def delete_message(message_id):
-    try:
-        result = mongo.db.messages.delete_one({'_id': ObjectId(message_id)})
-        if result.deleted_count == 1:
-            return {'msg': 'Item deleted successfully', 'status': 200}
-        else:
-            return {'msg': 'No item found to delete', 'status': 404}
-    except Exception as e:
-        return {'error': str(e), 'status': 500}
+        return jsonify({"error": str(e)}), 400

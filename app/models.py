@@ -102,3 +102,8 @@ class ResumeManager(BaseManager):
 class JobManager(BaseManager):
     def __init__(self):
         super().__init__('job')
+
+
+class TaskManager(BaseManager):
+    def __init__(self):
+        super().__init__('task')
