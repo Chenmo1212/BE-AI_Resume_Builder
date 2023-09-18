@@ -1,3 +1,4 @@
+import json
 import os
 import time
 from datetime import datetime
@@ -7,6 +8,7 @@ from pathvalidate import sanitize_filename
 import utils
 
 from prompts import Job_Post, Resume_Builder
+from yaml_to_json import yaml_to_json
 
 
 class Pipeline:
@@ -171,9 +173,20 @@ class Pipeline:
         print("=========== Start update experiences ===========")
         utils.generate_new_tex(yaml_file=f"{self.resume_filename}.yaml")
 
+    def generate_json(self):
+        yaml_data = utils.read_yaml(f"{self.resume_filename}.yaml")
+        json_data = yaml_to_json(yaml_data)
+
+        # Write the data to the JSON file
+        with open(f"{self.resume_filename}.json", "w", encoding="utf-8") as json_file:
+            json.dump(json_data, json_file)
+
+        print("Successfully generate json file.")
+
     def generate_pdf(self):
         print("=========== Start update experiences ===========")
-        # Most common errors during pdf generation occur due to special characters. Escape them with backslashes in the yaml, e.g. $ -> \$
+        # Most common errors during pdf generation occur due to special characters.
+        # Escape them with backslashes in the yaml, e.g. $ -> \$
         pdf_file = utils.generate_pdf(yaml_file=f"{self.resume_filename}.yaml")
         display(Markdown((f"[{pdf_file}](<{pdf_file}>)")))
 
