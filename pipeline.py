@@ -21,7 +21,10 @@ class Pipeline:
         self.job_text: str = ""
         self.resume_text: dict = {}
         self.parsed_job: dict = {}
-        self.resume = None
+        self.resume: dict = {}
+        self.resume_builder = None
+        self.resume_yaml: str = ""
+        self.resume_json: str = ""
         self.resume_filename: str = ""
         self.folder: str = ""
         self.llm_kwargs = dict(
@@ -82,7 +85,7 @@ class Pipeline:
             logger.warning("resume_text is empty, please call set_resume_text() first.")
             return None
 
-        self.resume = Resume_Builder(
+        self.resume_builder = Resume_Builder(
             resume=self.resume_text,
             parsed_job=self.parsed_job,
             llm_kwargs=self.llm_kwargs,
@@ -92,10 +95,10 @@ class Pipeline:
     def update_experiences(self, update_yaml=False) -> str:
         print("=========== Start updating experiences ===========")
         start_time = time.time()
-        if not self.resume:
+        if not self.resume_builder:
             self.read_resume()
-        experiences = self.resume.rewrite_unedited_experiences(verbose=False)
-        self.resume.experiences = experiences
+        experiences = self.resume_builder.rewrite_unedited_experiences(verbose=False)
+        self.resume_builder.experiences = experiences
         if update_yaml:
             experiences_yaml = utils.dict_to_yaml_string(dict(experiences=experiences))
             self.update_resume_data(experiences_yaml)
@@ -105,10 +108,10 @@ class Pipeline:
     def update_projects(self, update_yaml=False) -> str:
         print("=========== Start updating projects ===========")
         start_time = time.time()
-        if not self.resume:
+        if not self.resume_builder:
             self.read_resume()
-        projects = self.resume.rewrite_projects_desc(verbose=False)
-        self.resume.projects = projects
+        projects = self.resume_builder.rewrite_projects_desc(verbose=False)
+        self.resume_builder.projects = projects
         if update_yaml:
             projects_yaml = utils.dict_to_yaml_string(dict(projects=projects))
             self.update_resume_data(projects_yaml)
@@ -122,8 +125,8 @@ class Pipeline:
         """
         print("=========== Start extracting skills ===========")
         start_time = time.time()
-        skills = self.resume.extract_matched_skills(verbose=False)
-        self.resume.skills = skills
+        skills = self.resume_builder.extract_matched_skills(verbose=False)
+        self.resume_builder.skills = skills
         if update_yaml:
             skills_yaml = utils.dict_to_yaml_string(dict(skills=skills))
             self.update_resume_data(skills_yaml)
@@ -133,10 +136,10 @@ class Pipeline:
     def update_summary(self, update_yaml=False) -> str:
         print("=========== Start updating summary ===========")
         start_time = time.time()
-        if not self.resume:
+        if not self.resume_builder:
             self.read_resume()
-        summary = self.resume.write_summary(verbose=True)
-        self.resume.summary = summary
+        summary = self.resume_builder.write_summary(verbose=True)
+        self.resume_builder.summary = summary
         if update_yaml:
             summary_yaml = utils.dict_to_yaml_string(dict(summary=summary))
             self.update_resume_data(summary_yaml)
@@ -146,15 +149,15 @@ class Pipeline:
     def generate_resume_yaml(self):
         if not self.parsed_job:
             self.read_and_parse_job()
-        if not self.resume:
+        if not self.resume_builder:
             self.read_resume()
 
         self.resume_filename = os.path.join(
             self.folder,
             sanitize_filename(f"{self.parsed_job['job_title']}")
         )
-        resume_final = self.resume.finalize()
-        utils.write_yaml(resume_final, filename=f"{self.resume_filename}.yaml")
+        self.resume = self.resume_builder.finalize()
+        utils.write_yaml(self.resume, filename=f"{self.resume_filename}.yaml")
 
     def update_resume_data(self, edits):
         # Review the generated output in previous cell.
@@ -166,16 +169,16 @@ class Pipeline:
             new_edit = utils.read_yaml(edits)
             if "experiences" in new_edit:
                 updated.append('experiences')
-                self.resume.experiences = new_edit["experiences"]
+                self.resume_builder.experiences = new_edit["experiences"]
             if "projects" in new_edit:
                 updated.append('projects')
-                self.resume.projects = new_edit["projects"]
+                self.resume_builder.projects = new_edit["projects"]
             if "skills" in new_edit:
                 updated.append('projects')
-                self.resume.skills = new_edit["skills"]
+                self.resume_builder.skills = new_edit["skills"]
             if "summary" in new_edit:
                 updated.append('summary')
-                self.resume.summary = new_edit["summary"]
+                self.resume_builder.summary = new_edit["summary"]
 
         self.generate_resume_yaml()
         print(f"Successfully: {', '.join(updated)} updated successfully")
@@ -199,16 +202,16 @@ class Pipeline:
         print(f'Step 8: Improve Final Resume Done. Time Using: {time.time() - start_time:.6f}')
 
     def generate_tex(self):
-        print("=========== Start update experiences ===========")
+        print("=========== Start generate tex ===========")
         utils.generate_new_tex(yaml_file=f"{self.resume_filename}.yaml")
 
     def generate_json(self):
-        yaml_data = utils.read_yaml(f"{self.resume_filename}.yaml")
-        json_data = yaml_to_json(yaml_data)
+        self.resume_yaml = utils.read_yaml(filename=f"{self.resume_filename}.yaml")
+        self.resume_json = yaml_to_json(self.resume_yaml)
 
         # Write the data to the JSON file
         with open(f"{self.resume_filename}.json", "w", encoding="utf-8") as json_file:
-            json.dump(json_data, json_file)
+            json.dump(self.resume_json, json_file)
 
         print("Successfully generate json file.")
 
@@ -257,11 +260,18 @@ if __name__ == '__main__':
     raw_resume_file = "resume_raw.yaml"  # filename for raw resume yaml. See example in repo for instructions.
 
     NOIR = Pipeline()
-    #
+
     job_content = utils.read_jobfile(filename="./my_applications/job.txt")
-    resume_content = utils.read_yaml(filename="./my_applications/resume_raw.yaml")
-    #
+    # resume_content = utils.read_yaml(filename="./my_applications/resume_raw.yaml")
+
+    with open(f"./my_applications/resume_raw.json", "r") as json_file:
+        resume_content = json.load(json_file)
+
     # # NOIR.set_resume_text()
     NOIR.set_job_text(job_text=job_content)
     NOIR.set_resume_text(resume_text=resume_content)
-    NOIR.main()
+    # NOIR.main()
+    NOIR.resume_filename = "my_applications/20230919__Avanade__Frontend Developer/Frontend Developer"
+    # NOIR.improve_final_resume()
+    # NOIR.generate_tex()
+    NOIR.generate_json()
