@@ -1,8 +1,9 @@
 import json
+import logging
 import os
 import time
 from datetime import datetime
-from IPython.display import display, Markdown
+# from IPython.display import display, Markdown
 from pathvalidate import sanitize_filename
 
 import utils
@@ -10,19 +11,41 @@ import utils
 from prompts import Job_Post, Resume_Builder
 from yaml_to_json import yaml_to_json
 
+# create logger
+logger = logging.getLogger(__name__)
+
 
 class Pipeline:
-    def __init__(self, job_path, raw_resume, openai_model_name="gpt-3.5-turbo"):
-        self.job_path = job_path
-        self.raw_resume_file = raw_resume
-        self.parsed_job = None
+    def __init__(self, root_path="my_applications", openai_model_name="gpt-3.5-turbo"):
+        self.root_path: str = root_path
+        self.job_text: str = ""
+        self.resume_text: dict = {}
+        self.parsed_job: dict = {}
         self.resume = None
-        self.resume_filename = None
-        self.folder = None
+        self.resume_filename: str = ""
+        self.folder: str = ""
         self.llm_kwargs = dict(
             model_name=openai_model_name,
             model_kwargs=dict(top_p=0.6, frequency_penalty=0.1),
         )
+
+    def set_resume_text(self, resume_text: dict = {}, filename: str = ""):
+        if not resume_text and not filename:
+            logger.warning("Neither resume text nor filename have been provided.")
+            return None
+        if resume_text:
+            self.resume_text = resume_text
+        else:
+            self.resume_text = utils.read_yaml(filename=filename)
+
+    def set_job_text(self, job_text: str = "", filename: str = ""):
+        if not job_text and not filename:
+            logger.warning("Neither job text nor filename have been provided.")
+            return None
+        if job_text:
+            self.job_text = job_text
+        else:
+            self.job_text = utils.read_jobfile(filename=filename)
 
     def _create_company_folder(self):
         if not os.path.exists(self.folder):
@@ -30,15 +53,18 @@ class Pipeline:
 
     def read_and_parse_job(self):
         print("=========== Start parsing job information ===========")
+        if not self.job_text:
+            logger.warning("Job_text is empty, please call set_job_text() first.")
+            return None
+
         start_time = time.time()
-        job_post = Job_Post(utils.read_jobfile(self.job_path))
+        job_post = Job_Post(self.job_text)
         self.parsed_job = job_post.parse_job_post(verbose=False)
 
         company_name = self.parsed_job["company"]
         job_title = self.parsed_job["job_title"]
         today_date = datetime.today().strftime("%Y%m%d")
-        root_path = self.job_path.split('/')[0]
-        self.folder = f"{root_path}/{today_date}__{company_name}__{job_title}"
+        self.folder = f"{self.root_path}/{today_date}__{company_name}__{job_title}"
         self._create_company_folder()
 
         job_filename = f"{self.folder}/{job_title}"
@@ -52,9 +78,12 @@ class Pipeline:
 
         if not self.parsed_job:
             self.read_and_parse_job()
+        if not self.resume_text:
+            logger.warning("resume_text is empty, please call set_resume_text() first.")
+            return None
 
         self.resume = Resume_Builder(
-            resume=utils.read_yaml(filename=os.path.join(self.raw_resume_file)),
+            resume=self.resume_text,
             parsed_job=self.parsed_job,
             llm_kwargs=self.llm_kwargs,
         )
@@ -188,7 +217,7 @@ class Pipeline:
         # Most common errors during pdf generation occur due to special characters.
         # Escape them with backslashes in the yaml, e.g. $ -> \$
         pdf_file = utils.generate_pdf(yaml_file=f"{self.resume_filename}.yaml")
-        display(Markdown((f"[{pdf_file}](<{pdf_file}>)")))
+        # display(Markdown((f"[{pdf_file}](<{pdf_file}>)")))
 
     def main(self):
         # Step 1 - Read and parse job posting
@@ -218,6 +247,7 @@ class Pipeline:
         # Step 9 - Generate pdf from yaml
         # generate_pdf(resume_filename)
         self.generate_tex()
+        self.generate_json()
 
 
 if __name__ == '__main__':
@@ -226,5 +256,12 @@ if __name__ == '__main__':
     job_file = "job.txt"  # filename with job post text. The entire job post can be pasted in this file, as is.
     raw_resume_file = "resume_raw.yaml"  # filename for raw resume yaml. See example in repo for instructions.
 
-    NOIR = Pipeline(job_path='my_applications/job.txt', raw_resume='my_applications/resume_raw.yaml')
+    NOIR = Pipeline()
+    #
+    job_content = utils.read_jobfile(filename="./my_applications/job.txt")
+    resume_content = utils.read_yaml(filename="./my_applications/resume_raw.yaml")
+    #
+    # # NOIR.set_resume_text()
+    NOIR.set_job_text(job_text=job_content)
+    NOIR.set_resume_text(resume_text=resume_content)
     NOIR.main()
