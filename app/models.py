@@ -98,6 +98,14 @@ class ResumeManager(BaseManager):
     def __init__(self):
         super().__init__('resume')
 
+    def create(self, data):
+        data.update({
+            "is_raw": data.get('is_raw', True),
+            "raw_id": data.get('raw_id', ""),
+            "job_id": data.get('job_id', "")
+        })
+        return super().create(data)
+
 
 class JobManager(BaseManager):
     def __init__(self):

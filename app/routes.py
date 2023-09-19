@@ -77,15 +77,10 @@ def insert_job():
     try:
         data = request.get_json()
         manager = JobManager()
-
         job_id = manager.create({
             'raw': data,
-            'status': 1,  # 0: waiting, 1:pending, 2: done
+            'status': 0,  # 0: waiting, 1:pending, 2: done
         })
-
-        thread = threading.Thread(target=parsing_job, args=(data['raw_job'], job_id,))
-        thread.start()
-
         return jsonify({"message": "Job created successfully", "inserted_id": str(job_id)}), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 400
@@ -160,12 +155,8 @@ def add_task():
             'status': 1,  # 0: waiting, 1: pending, 2: done
         })
 
-        resume = resume_manager.get(resume_id)
-        job = job_manager.get(job_id)
-        ai = Pipeline()
-        ai.set_job_text(job)
-        ai.set_resume_text(resume)
-        ai.main()
+        task = threading.Thread(target=start_task, args=(resume_id, job_id,))
+        task.start()
 
         return jsonify({"message": "Task created successfully", "inserted_id": str(task_id)}), 201
     except Exception as e:
@@ -181,4 +172,25 @@ def parsing_job(raw_job, job_id):
     manager.update(job_id, {
         **parsed_job,
         'status': 2,  # 0: waiting, 1: pending, 2: done
+    })
+
+
+def start_task(resume_id, job_id):
+    resume_manager = ResumeManager()
+    resume = resume_manager.get(resume_id)
+    job_manager = JobManager()
+    job = job_manager.get(job_id)
+
+    ai_resume = Pipeline()
+    ai_resume.set_job_text(job)
+    ai_resume.set_resume_text(resume)
+    ai_resume.main()
+
+    resume_manager.create({
+        **ai_resume.resume,
+        "is_raw": False,
+        "raw_id": resume_id,
+        "job_id": job_id,
+        "resume_json": ai_resume.resume_json,
+        "resume_yaml": ai_resume.resume_yaml,
     })

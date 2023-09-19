@@ -282,15 +282,15 @@ class Resume_Builder(Extractor_LLM):
 
         self.degrees = self._get_degrees(self.resume)
         self.basic_info = {
-            **utils.get_dict_field(field="basic", resume=self.resume),
+            **utils.get_dict_field(field="basics", resume=self.resume),
             'label': parsed_job['job_title']
         }
         self.education = utils.get_dict_field(field="education", resume=self.resume)
         self.projects = utils.get_dict_field(field="projects", resume=self.resume)
-        self.experiences = utils.get_dict_field(field="experiences", resume=self.resume)
+        self.experiences = utils.get_dict_field(field="work", resume=self.resume)
         self.skills = utils.get_dict_field(field="skills", resume=self.resume)
-        self.summary = utils.get_dict_field(field="summary", resume=self.resume)
-        self.achievements = utils.get_dict_field(field="achievements", resume=self.resume)
+        self.summary = utils.get_dict_field(field="summary", resume=self.resume['basics'])
+        self.achievements = utils.get_dict_field(field="achievements", resume=self.resume.get('activities', {}))
         if not is_final:
             self.experiences_raw = self.experiences
             self.experiences = None
@@ -322,7 +322,7 @@ class Resume_Builder(Extractor_LLM):
             HumanMessage(
                 content="<Instruction> Identify the relevant portions from the <Master Resume> that match the <Job Posting>, "
                         "and rephrase these relevant portions into highlights"
-                        # "and rate the relevance of each highlight to the <Job Posting> on a scale of 1-5."
+                # "and rate the relevance of each highlight to the <Job Posting> on a scale of 1-5."
             ),
             HumanMessage(
                 content="<Criteria> "
@@ -605,6 +605,20 @@ class Resume_Builder(Extractor_LLM):
             else:
                 l1.append(s)
 
+    def _format_skills_raw(self, skills_raw):
+        skills = [{'category': 'Technical',
+                   'skills': []},
+                  {'category': 'Non-technical',
+                   'skills': []}]
+        for s in skills_raw:
+            if s != "practices":
+                skills[0]['skills'] += skills_raw[s]
+            else:
+                skills[1]['skills'] += skills_raw[s]
+        skills[0]['skills'] = [s["name"] for s in skills[0]['skills']]
+        skills[1]['skills'] = [s["name"] for s in skills[1]['skills']]
+        return skills
+
     def _print_debug_message(self, chain_kwargs: dict, chain_output_unformatted: str):
         message = "Final answer is missing from the chain output."
         if not chain_kwargs.get("verbose"):
@@ -639,17 +653,19 @@ class Resume_Builder(Extractor_LLM):
         for exp_raw in self.experiences_raw:
             # create copy of raw experience to update
             exp = dict(exp_raw)
-            experience_unedited = exp.pop("unedited", None)
-
+            if exp.get("unedited", False):
+                experience_unedited = exp.get("summary", None)
+            else:
+                experience_unedited = ""
             start_time = time.time()
-            print(f"{exp['company']} Start: \n {experience_unedited}")
+            print(f"{exp['name']} Start: \n {experience_unedited}")
             if experience_unedited:
                 # rewrite experience using llm
                 exp["highlights"] = self.rewrite_section(
                     section=experience_unedited, **chain_kwargs
                 )
             result.append(exp)
-            print(f"{exp['company']} End {time.time() - start_time:.6f}: \n {exp['highlights']}")
+            print(f"{exp['name']} End {time.time() - start_time:.6f}: \n {exp['highlights']}")
 
         return result
 
@@ -657,15 +673,19 @@ class Resume_Builder(Extractor_LLM):
         result = []
         for proj_raw in self.projects_raw:
             # create copy of raw project desc to update
-            proj = dict(proj_raw)
+            proj = proj_raw
+            if not isinstance(proj_raw, dict):
+                proj = dict(proj_raw)
             start_time = time.time()
 
-            unedited = proj.pop("unedited", None)
-            print(f"{proj['title']} Start: \n {unedited}")
+            if proj.get("unedited", False):
+                proj_unedited = proj.get("summary", None)
+            else:
+                proj_unedited = ""
 
-            if unedited:
+            if proj_unedited:
                 skills = proj['skills']
-                desc_combined = unedited + " using " + skills
+                desc_combined = proj_unedited + " using " + skills
                 # rewrite project desc using llm
                 proj["highlights"] = self.rewrite_section(
                     section=desc_combined, **chain_kwargs
@@ -710,7 +730,7 @@ class Resume_Builder(Extractor_LLM):
                 )
             )
         # Add skills from raw file
-        self._combine_skill_lists(result, self.skills_raw)
+        self._combine_skill_lists(result, self._format_skills_raw(self.skills_raw))
         return result
 
     def write_summary(self, **chain_kwargs) -> dict:
@@ -757,12 +777,15 @@ class Resume_Builder(Extractor_LLM):
         return improvements["final_answer"]
 
     def finalize(self) -> dict:
+        self.basic_info = {
+            **self.basic_info,
+            "summary": self.summary
+        }
         return dict(
-            basic=self.basic_info,
-            summary=self.summary,
+            basics=self.basic_info,
             education=self.education,
-            experiences=self.experiences,
+            work=self.experiences,
             projects=self.projects,
             skills=self.skills,
-            achievements=self.achievements
+            activities={"achievements": self.achievements}
         )

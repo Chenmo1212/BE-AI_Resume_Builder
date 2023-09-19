@@ -93,7 +93,7 @@ def get_dict_field(field: str, resume: dict):
     return None
 
 
-def generate_new_tex(yaml_file: str, template_file: str = None):
+def generate_new_tex(yaml_file: str, template_file: str = None) -> str:
     # set default template file. file location is relative to `templates` directory
     if not template_file:
         template_file = "resume.tex"

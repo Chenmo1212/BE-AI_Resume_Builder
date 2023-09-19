@@ -62,19 +62,19 @@
 
 % ------------- header ------------- %
 \begin{center}
-{\Large \textbf{\VAR{ basic.name }}}\\
+{\Large \textbf{\VAR{ basics.name }}}\\
 \vspace{1px}
 % "footnotes" (icon + link)
 {\footnotesize
-    \faicon{envelope} \href{mailto:\VAR{ basic.contact.email }}{\VAR{ basic.contact.email }} \hSpace
-    \faicon{phone} \iconSpace \VAR{ basic.contact.phone }\hSpace
-    \faicon{map-marker} \iconSpace \VAR{ basic.address }\hSpace
+    \faicon{envelope} \href{mailto:\VAR{ basics.email }}{\VAR{ basics.email }} \hSpace
+    \faicon{phone} \iconSpace \VAR{ basics.phone }\hSpace
+    \faicon{map-marker} \iconSpace \VAR{ basics.address }\hSpace
 }\\
 
 {\footnotesize
-%% if "websites" in basic and basic.websites|length > 0:
-    %% for website in basic.websites
-    \BLOCK{ if "icon" in website }\faicon{\VAR{ website.icon }}  \iconSpace \BLOCK{ endif }\href{\VAR{ website.url }} {\VAR{ website.text }}  \hSpace
+%% if "profiles" in basics and basics.profiles|length > 0:
+    %% for website in basics.profiles
+    \BLOCK{ if "network" in website }\faicon{\VAR{ website.network }}  \iconSpace \BLOCK{ endif }\href{\VAR{ website.url }} {\VAR{ website.username }}  \hSpace
     %% endfor
 %% endif
 }
@@ -104,19 +104,13 @@
 \section{\color{black} \textbf{Work Experience}}
 \secStartSpace
 \begin{addmargin}[0em]{1em}
-    %% for job in experiences:
+    %% for job in work:
 
     \noindent \textbf{\VAR{ job.company }} \hfill \textbf{\VAR{ job.startdate } - \VAR{ job.enddate }}\\
-        %% if "titles" in job and job.titles | length > 0:
-            %% for title in job.titles:
-    \textit{\VAR{ title.name }}
-                %% if job.titles | length > 1:
-    - (\VAR{ title.startdate } - \VAR{ title.enddate })
-                      %% if not loop.last:
+        %% if "name" in job:
+    \textit{\VAR{ job.name }}
+    - (\VAR{ job.startdate } - \VAR{ job.enddate })
     \\
-                      %% endif
-                %% endif
-            %% endfor
         %% endif
 
         %% if "highlights" in job and job.highlights|length > 0:
@@ -138,7 +132,7 @@
 % ------------- end experience ------------- %
 
 % ------------- skills ------------- %
-%% if (skills is defined and skills|length > 0):
+%% if skills is defined and skills|length > 0:
 \section{\color{black} \textbf{Skills}}
 \secStartSpace
 \begin{addmargin}[0em]{1em}
