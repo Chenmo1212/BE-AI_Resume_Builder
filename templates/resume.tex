@@ -61,13 +61,13 @@
 \begin{document}
 
 % ------------- header ------------- %
-\begin{center} 
+\begin{center}
 {\Large \textbf{\VAR{ basic.name }}}\\
 \vspace{1px}
 % "footnotes" (icon + link)
 {\footnotesize
     \faicon{envelope} \href{mailto:\VAR{ basic.contact.email }}{\VAR{ basic.contact.email }} \hSpace
-    \faicon{phone} \iconSpace \VAR{ basic.contact.phone }\hSpace 
+    \faicon{phone} \iconSpace \VAR{ basic.contact.phone }\hSpace
     \faicon{map-marker} \iconSpace \VAR{ basic.address }\hSpace
 }\\
 
@@ -210,26 +210,17 @@
     \vspace{3pt}
     %% endif
 
-    %% if "degrees" in school and school.degrees|length > 0:
-        %% for degree in school.degrees:
-            %% for name in degree.names:
-                %% if school.degrees | length > 1:
-    \VAR{ name }} \hfill \textbf{\VAR{ degree.startdate } - \VAR{ degree.enddate }} \\
-                %% endif
-            %% endfor
+    \VAR{ school.area }} - \VAR{ school.branch }} \\
 
-            %% if "gpa" in degree:
-    \ &\hspace{1.5em}GPA: \VAR{ degree.gpa } \\
-            %% endif
+    %% if "gpa" in school and school.gap:
+    \ &\hspace{1.5em}GPA: \VAR{ school.gpa } \\
+    %% endif
 
-            %% if "dissertation" in degree:
-    \textbf{Dissertation}: \textit{\VAR{ degree.dissertation.title }}
+    %% if "dissertation" in school and school.dissertation:
+    \textbf{Dissertation}: \textit{\VAR{ school.dissertation.title }}
     \begin{itemize}[leftmargin=1.5em] \vspace{-10px}
-    \item \VAR{ degree.dissertation.description }
+    \item \VAR{ school.dissertation.description }
     \end{itemize}
-            %% endif
-
-        %% endfor
     %% endif
 
 %#
