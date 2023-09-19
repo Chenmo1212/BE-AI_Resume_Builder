@@ -6,9 +6,13 @@ import requests, json
 from bson import ObjectId
 import pymongo
 import os
+import threading
 import logging
+from pipeline import Pipeline
 
 # create logger
+from prompts import Job_Post
+
 logger = logging.getLogger(__name__)
 
 
@@ -73,7 +77,15 @@ def insert_job():
     try:
         data = request.get_json()
         manager = JobManager()
-        job_id = manager.create(data)
+
+        job_id = manager.create({
+            'raw': data,
+            'status': 1,  # 0: waiting, 1:pending, 2: done
+        })
+
+        thread = threading.Thread(target=parsing_job, args=(data['raw_job'], job_id,))
+        thread.start()
+
         return jsonify({"message": "Job created successfully", "inserted_id": str(job_id)}), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 400
@@ -144,9 +156,29 @@ def add_task():
         task_manager = TaskManager()
         task_id = task_manager.create({
             'job_id': job_id,
-            'resume_id': resume_id
+            'resume_id': resume_id,
+            'status': 1,  # 0: waiting, 1: pending, 2: done
         })
+
+        resume = resume_manager.get(resume_id)
+        job = job_manager.get(job_id)
+        ai = Pipeline()
+        ai.set_job_text(job)
+        ai.set_resume_text(resume)
+        ai.main()
 
         return jsonify({"message": "Task created successfully", "inserted_id": str(task_id)}), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 400
+
+
+def parsing_job(raw_job, job_id):
+    job_post = Job_Post(raw_job)
+    parsed_job = job_post.parse_job_post(verbose=False)
+    logger.info('parsed_job:', parsed_job)
+    print("parsed_job: Done")
+    manager = JobManager()
+    manager.update(job_id, {
+        **parsed_job,
+        'status': 2,  # 0: waiting, 1: pending, 2: done
+    })
