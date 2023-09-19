@@ -611,7 +611,7 @@ class Resume_Builder(Extractor_LLM):
             message += "\nChain output:\n" + chain_output_unformatted
         # print(message)
 
-    def rewrite_section(self, section: list | str, **chain_kwargs) -> dict:
+    def rewrite_section(self, section: list or str, **chain_kwargs) -> dict:
         chain = self._section_highlighter_chain(**chain_kwargs)
         chain_inputs = format_prompt_inputs_as_strings(
             prompt_inputs=chain.prompt.input_variables,
