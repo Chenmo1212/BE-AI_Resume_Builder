@@ -18,12 +18,11 @@ logger = logging.getLogger(__name__)
 class Pipeline:
     def __init__(self, root_path="my_applications", openai_model_name="gpt-3.5-turbo"):
         self.root_path: str = root_path
-        self.job_text: str = ""
-        self.resume_text: dict = {}
+        self.raw_job: str = ""
+        self.raw_resume: dict = {}
+        self.final_resume: dict = {}
         self.parsed_job: dict = {}
-        self.resume: dict = {}
         self.resume_builder = None
-        self.resume_yaml: str = ""
         self.resume_json: str = ""
         self.resume_filename: str = ""
         self.folder: str = ""
@@ -32,23 +31,23 @@ class Pipeline:
             model_kwargs=dict(top_p=0.6, frequency_penalty=0.1),
         )
 
-    def set_resume_text(self, resume_text: dict = {}, filename: str = ""):
-        if not resume_text and not filename:
+    def set_raw_resume(self, raw_resume: dict = {}, filename: str = ""):
+        if not raw_resume and not filename:
             logger.warning("Neither resume text nor filename have been provided.")
             return None
-        if resume_text:
-            self.resume_text = resume_text
+        if raw_resume:
+            self.raw_resume = raw_resume
         else:
-            self.resume_text = utils.read_yaml(filename=filename)
+            self.raw_resume = utils.read_yaml(filename=filename)
 
     def set_job_text(self, job_text: str = "", filename: str = ""):
         if not job_text and not filename:
             logger.warning("Neither job text nor filename have been provided.")
             return None
         if job_text:
-            self.job_text = job_text
+            self.raw_job = job_text
         else:
-            self.job_text = utils.read_jobfile(filename=filename)
+            self.raw_job = utils.read_jobfile(filename=filename)
 
     def _create_company_folder(self):
         if not os.path.exists(self.folder):
@@ -56,13 +55,15 @@ class Pipeline:
 
     def read_and_parse_job(self):
         print("=========== Start parsing job information ===========")
-        if not self.job_text:
-            logger.warning("Job_text is empty, please call set_job_text() first.")
+        if not self.raw_job and not self.parsed_job:
+            logger.warning("Job_text and Parsed_job are empty, please call set_job_text() first.")
             return None
 
         start_time = time.time()
-        job_post = Job_Post(self.job_text)
-        self.parsed_job = job_post.parse_job_post(verbose=False)
+
+        if not self.parsed_job:
+            job_post = Job_Post(self.raw_job)
+            self.parsed_job = job_post.parse_job_post(verbose=False)
 
         company_name = self.parsed_job["company"]
         job_title = self.parsed_job["job_title"]
@@ -81,12 +82,12 @@ class Pipeline:
 
         if not self.parsed_job:
             self.read_and_parse_job()
-        if not self.resume_text:
-            logger.warning("resume_text is empty, please call set_resume_text() first.")
+        if not self.raw_resume:
+            logger.warning("Resume_text is empty, please call set_resume_text() first.")
             return None
 
         self.resume_builder = Resume_Builder(
-            resume=self.resume_text,
+            resume=self.raw_resume,
             parsed_job=self.parsed_job,
             llm_kwargs=self.llm_kwargs,
         )
@@ -156,8 +157,8 @@ class Pipeline:
             self.folder,
             sanitize_filename(f"{self.parsed_job['job_title']}")
         )
-        self.resume = self.resume_builder.finalize()
-        utils.write_yaml(self.resume, filename=f"{self.resume_filename}.yaml")
+        self.final_resume = self.resume_builder.finalize()
+        utils.write_yaml(self.final_resume, filename=f"{self.resume_filename}.yaml")
 
     def update_resume_data(self, edits):
         # Review the generated output in previous cell.
@@ -206,12 +207,12 @@ class Pipeline:
         utils.generate_new_tex(yaml_file=f"{self.resume_filename}.yaml")
 
     def generate_json(self):
-        self.resume_yaml = utils.read_yaml(filename=f"{self.resume_filename}.yaml")
-        self.resume_json = yaml_to_json(self.resume_yaml)
+        resume_yaml = utils.read_yaml(filename=f"{self.resume_filename}.yaml")
+        self.final_resume = yaml_to_json(resume_yaml)
 
         # Write the data to the JSON file
         with open(f"{self.resume_filename}.json", "w", encoding="utf-8") as json_file:
-            json.dump(self.resume_json, json_file)
+            json.dump(self.final_resume, json_file)
 
         print("Successfully generate json file.")
 
@@ -253,25 +254,32 @@ class Pipeline:
         self.generate_json()
 
 
+def read_json(filename: str) -> dict:
+    with open(filename, "r", encoding='utf-8') as json_file:
+        data = json.load(json_file)
+    return data
+
+
 if __name__ == '__main__':
     ## Inputs
     my_files_dir = "my_applications"  # location for all job and resume files
     job_file = "job.txt"  # filename with job post text. The entire job post can be pasted in this file, as is.
     raw_resume_file = "resume_raw.yaml"  # filename for raw resume yaml. See example in repo for instructions.
 
-    NOIR = Pipeline()
+    ai_resume = Pipeline()
+    job = read_json('job.json')
+    resume = read_json('resume.json')
+    ai_resume.set_raw_resume(raw_resume=resume)
+    ai_resume.parsed_job = job
+    ai_resume.main()
 
-    job_content = utils.read_jobfile(filename="./my_applications/job.txt")
+    # job_content = utils.read_jobfile(filename="./my_applications/job.txt")
     # resume_content = utils.read_yaml(filename="./my_applications/resume_raw.yaml")
 
-    with open(f"./my_applications/resume_raw.json", "r") as json_file:
-        resume_content = json.load(json_file)
+    # with open(f"./my_applications/resume_raw.json", "r") as json_file:
+    #     resume_content = json.load(json_file)
 
-    # # NOIR.set_resume_text()
-    NOIR.set_job_text(job_text=job_content)
-    NOIR.set_resume_text(resume_text=resume_content)
-    # NOIR.main()
-    NOIR.resume_filename = "my_applications/20230919__Avanade__Frontend Developer/Frontend Developer"
+    # ai_resume.resume_filename = "my_applications/20230919__Avanade__Frontend Developer/Frontend Developer"
     # NOIR.improve_final_resume()
-    # NOIR.generate_tex()
-    NOIR.generate_json()
+    # ai_resume.generate_tex()
+    # ai_resume.generate_json()

@@ -1,11 +1,8 @@
+import time
+
 from flask import jsonify, request
-from app import app, mongo
-from app.models import Message, ResumeManager, JobManager, TaskManager
-from datetime import datetime
-import requests, json
-from bson import ObjectId
-import pymongo
-import os
+from app import app
+from app.models import ResumeManager, JobManager, TaskManager
 import threading
 import logging
 from pipeline import Pipeline
@@ -153,9 +150,10 @@ def add_task():
             'job_id': job_id,
             'resume_id': resume_id,
             'status': 1,  # 0: waiting, 1: pending, 2: done
+            'content': "resume"
         })
 
-        task = threading.Thread(target=start_task, args=(resume_id, job_id,))
+        task = threading.Thread(target=start_task, args=(resume_id, job_id, task_id))
         task.start()
 
         return jsonify({"message": "Task created successfully", "inserted_id": str(task_id)}), 201
@@ -175,7 +173,8 @@ def parsing_job(raw_job, job_id):
     })
 
 
-def start_task(resume_id, job_id):
+def start_task(resume_id, job_id, task_id):
+    start_time = time.time()
     resume_manager = ResumeManager()
     resume = resume_manager.get(resume_id)
     job_manager = JobManager()
@@ -183,14 +182,17 @@ def start_task(resume_id, job_id):
 
     ai_resume = Pipeline()
     ai_resume.set_job_text(job)
-    ai_resume.set_resume_text(resume)
+    ai_resume.set_raw_resume(resume)
     ai_resume.main()
 
+    job_manager.update(job_id, {
+        **ai_resume.parsed_job,
+        'status': 2,  # 0: waiting, 1: pending, 2: done
+    })
+
     resume_manager.create({
-        **ai_resume.resume,
+        **ai_resume.final_resume,
         "is_raw": False,
         "raw_id": resume_id,
-        "job_id": job_id,
-        "resume_json": ai_resume.resume_json,
-        "resume_yaml": ai_resume.resume_yaml,
+        "job_id": job_id
     })
