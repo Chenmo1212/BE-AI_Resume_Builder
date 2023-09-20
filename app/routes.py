@@ -161,6 +161,50 @@ def add_task():
         return jsonify({"error": str(e)}), 400
 
 
+@app.route('/task/experiences', methods=['POST'])
+def update_experience_task():
+    try:
+        data = request.get_json()
+
+        if 'resume_id' not in data:
+            return jsonify({"error": str('Resume_id has not been provided.')}), 400
+
+        try:
+            resume_manager = ResumeManager()
+            resume = resume_manager.get(data['resume_id'], is_raw=False)
+            if not resume:
+                return jsonify({"Error: No matching Resume found!"}), 400
+        except Exception as e:
+            return jsonify({"Error: Query resume error!": str(e)}), 400
+
+        try:
+            job_manager = JobManager()
+            job = job_manager.get(resume['job_id'])
+            if not job:
+                return jsonify({"Error: No matching Job found!"}), 400
+        except Exception as e:
+            return jsonify({"Error: Query job error!": str(e)}), 400
+
+        task_manager = TaskManager()
+        task_id = task_manager.create({
+            'job_id': resume['job_id'],
+            'resume_id': data['resume_id'],
+            'status': 1,  # 0: waiting, 1: pending, 2: done
+            'content': "experiences"
+        })
+
+        ai_resume = Pipeline()
+        ai_resume.parsed_job = job
+        ai_resume.set_raw_resume(raw_resume=resume)
+
+        task = threading.Thread(target=update_experiences, args=(ai_resume, task_id))
+        task.start()
+
+        return jsonify({"message": "Task created successfully", "inserted_id": str(task_id)}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
 def parsing_job(raw_job, job_id):
     job_post = Job_Post(raw_job)
     parsed_job = job_post.parse_job_post(verbose=False)
@@ -195,4 +239,27 @@ def start_task(resume_id, job_id, task_id):
         "is_raw": False,
         "raw_id": resume_id,
         "job_id": job_id
+    })
+
+    task_manager = TaskManager()
+    task_manager.update(task_id, {
+        'status': 2,  # 0: waiting, 1: pending, 2: done
+        "time_using": time.time() - start_time
+    })
+
+
+def update_experiences(ai_resume, task_id):
+    start_time = time.time()
+    experiences = ai_resume.update_experiences()
+
+    resume_manager = ResumeManager()
+    resume_manager.create({
+        **ai_resume.raw_resume,
+        "work": experiences
+    })
+
+    task_manager = TaskManager()
+    task_manager.update(task_id, {
+        'status': 2,  # 0: waiting, 1: pending, 2: done
+        "time_using": time.time() - start_time
     })

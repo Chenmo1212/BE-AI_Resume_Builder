@@ -86,8 +86,8 @@ class BaseManager:
                                             {"$set": {"delete_time": current_time, "is_delete": True}})
         return result.modified_count
 
-    def get(self, document_id):
-        document_data = self.collection.find_one({"_id": ObjectId(document_id)})
+    def get(self, document_id, **query_kwargs):
+        document_data = self.collection.find_one({"_id": ObjectId(document_id), **query_kwargs})
         return _convert_id_type(document_data)
 
     def list(self):
