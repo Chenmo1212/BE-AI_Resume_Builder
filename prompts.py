@@ -93,6 +93,7 @@ class Job_Description(BaseModel):
         ..., description="Name of the company that has the job opening"
     )
     job_title: str = Field(..., description="Job title")
+    job_link: str = Field(..., description="Link of job application")
     team: str = Field(
         ...,
         description="Name of the team within the company. Team name should be null if it's not known.",
