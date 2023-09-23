@@ -75,10 +75,13 @@ def insert_job():
         data = request.get_json()
         manager = JobManager()
         job_id = manager.create({
-            'raw': data,
+            'raw': data.get('description', ''),
+            'company': data.get('company', ''),
+            'title': data.get('title', ''),
+            'link': data.get('link', ''),
             'status': 0,  # 0: waiting, 1:pending, 2: done
         })
-        return jsonify({"message": "Job created successfully", "inserted_id": str(job_id)}), 201
+        return jsonify({"message": "Job created successfully", "job_id": str(job_id)}), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
