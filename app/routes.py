@@ -75,7 +75,7 @@ def insert_job():
         data = request.get_json()
         manager = JobManager()
         job_id = manager.create({
-            'raw': data.get('description', ''),
+            'raw': data.get('raw', ''),
             'company': data.get('company', ''),
             'title': data.get('title', ''),
             'link': data.get('link', ''),
@@ -132,8 +132,9 @@ def add_task():
             return jsonify({"error": str('Neither resume_id nor resume have been provided.')}), 400
         if 'job_id' not in data and 'job_text' not in data:
             return jsonify({"error": str('Neither job_id nor job_text have been provided.')}), 400
-        if 'isUpdateAll' not in data and 'updatePart' not in data:
-            return jsonify({"message": "Nothing need to be updated, please check isUpdateAll and updatePart."}), 400
+        update_part = data.get('updatePart', "")
+        if not update_part:
+            return jsonify({"message": "Nothing need to be updated, please check updatePart."}), 400
 
         resume_manager = ResumeManager()
         if 'resume_id' not in data:
@@ -157,12 +158,79 @@ def add_task():
             'content': "resume"
         })
 
-        task = threading.Thread(target=start_task, args=(data, resume_id, job_id, task_id))
+        task = threading.Thread(target=start_task, args=(update_part, resume_id, job_id, task_id))
         task.start()
 
         return jsonify({"message": "Task created successfully", "inserted_id": str(task_id)}), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 400
+
+
+@app.route('/tasks', methods=['POST'])
+def add_tasks():
+    """
+    data: {
+    "resume": resume_json,
+    "job_list": [{job1}, {job2}]
+    }
+    """
+    try:
+        data = request.get_json()
+        if 'resume_id' not in data and 'resume' not in data:
+            return jsonify({"error": str('Neither resume_id nor resume have been provided.')}), 400
+        job_list = data.get("job_list", [])
+        if not job_list:
+            return jsonify({"error": str('Job_list has not been provided or job_list is empty.')}), 400
+        resume_manager = ResumeManager()
+        if 'resume_id' not in data:
+            if not isinstance(data['resume'], dict):
+                return jsonify({"error": str('Type of resume is not dict.')}), 400
+            resume_id = resume_manager.create(data['resume'])
+        else:
+            resume_id = data['resume_id']
+
+        process_job_list(job_list, resume_id)
+
+        return jsonify({"message": "Task created successfully"}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+def process_batch(job_list_batch, resume_id):
+    print("job_list_batch:", job_list_batch)
+    for job in job_list_batch:
+        task_manager = TaskManager()
+        job_manager = JobManager()
+        update_part = "resume"
+
+        if 'id' not in job:
+            job_id = job_manager.create({'raw': job['description']})
+        else:
+            job_id = job['id']
+
+        task_id = task_manager.create({
+            'job_id': job_id,
+            'resume_id': resume_id,
+            'status': 1,  # 0: waiting, 1: pending, 2: done
+            'content': update_part
+        })
+
+        start_task(update_part, resume_id, job_id, task_id)
+
+
+def process_job_list(job_list, resume_id):
+    batch_size = 5
+    num_jobs = len(job_list)
+    num_batches = (num_jobs + batch_size - 1) // batch_size
+
+    for i in range(num_batches):
+        start_idx = i * batch_size
+        end_idx = min((i + 1) * batch_size, num_jobs)
+        batch = job_list[start_idx:end_idx]
+
+        # Create a thread to process the batch asynchronously
+        thread = threading.Thread(target=process_batch, args=(batch, resume_id,))
+        thread.start()
 
 
 def parsing_job(raw_job, job_id):
@@ -177,7 +245,7 @@ def parsing_job(raw_job, job_id):
     })
 
 
-def start_task(data, resume_id, job_id, task_id):
+def start_task(update_part, resume_id, job_id, task_id):
     start_time = time.time()
     resume_manager = ResumeManager()
     resume = resume_manager.get(resume_id)
@@ -188,9 +256,9 @@ def start_task(data, resume_id, job_id, task_id):
     ai_resume.set_job_text(job)
     ai_resume.set_raw_resume(resume)
 
-    update_part = data.get('updatePart', "")
-    if data.get('isUpdateAll', False):
-        resume = ai_resume.main()
+    if update_part == "resume":
+        ai_resume.main()
+        resume = ai_resume.final_resume
     elif update_part == "experiences":
         experiences = ai_resume.update_experiences()
         resume = {
