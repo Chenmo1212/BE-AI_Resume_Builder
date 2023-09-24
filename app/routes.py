@@ -189,48 +189,60 @@ def add_tasks():
         else:
             resume_id = data['resume_id']
 
-        process_job_list(job_list, resume_id)
+        task_ids = process_job_list(job_list, resume_id)
 
-        return jsonify({"message": "Task created successfully"}), 201
+        return jsonify({"message": "Task created successfully", "task_ids": task_ids}), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
 
-def process_batch(job_list_batch, resume_id):
-    print("job_list_batch:", job_list_batch)
-    for job in job_list_batch:
-        task_manager = TaskManager()
-        job_manager = JobManager()
-        update_part = "resume"
-
-        if 'id' not in job:
-            job_id = job_manager.create({'raw': job['description']})
-        else:
-            job_id = job['id']
-
-        task_id = task_manager.create({
-            'job_id': job_id,
-            'resume_id': resume_id,
+def process_batch(job_ids, task_ids, resume_id, update_part):
+    print("job_ids:", job_ids)
+    print("task_ids:", task_ids)
+    task_manager = TaskManager()
+    for job_id, task_id in zip(job_ids, task_ids):
+        task_manager.update(task_id, {
             'status': 1,  # 0: waiting, 1: pending, 2: done
-            'content': update_part
         })
 
         start_task(update_part, resume_id, job_id, task_id)
 
 
 def process_job_list(job_list, resume_id):
+    update_part = "resume"
     batch_size = 5
     num_jobs = len(job_list)
     num_batches = (num_jobs + batch_size - 1) // batch_size
 
+    task_manager = TaskManager()
+    job_manager = JobManager()
+    job_ids = []
+    task_ids = []
+    for job in job_list:
+        if 'id' not in job:
+            job_id = job_manager.create({'raw': job['description']})
+        else:
+            job_id = job['id']
+        job_ids.append(job_id)
+        task_id = task_manager.create({
+            'job_id': job_id,
+            'resume_id': resume_id,
+            'status': 0,  # 0: waiting, 1: pending, 2: done
+            'content': update_part
+        })
+        task_ids.append(task_id)
+
     for i in range(num_batches):
         start_idx = i * batch_size
         end_idx = min((i + 1) * batch_size, num_jobs)
-        batch = job_list[start_idx:end_idx]
+        job_batch = job_ids[start_idx:end_idx]
+        task_batch = task_ids[start_idx:end_idx]
 
         # Create a thread to process the batch asynchronously
-        thread = threading.Thread(target=process_batch, args=(batch, resume_id,))
+        thread = threading.Thread(target=process_batch, args=(job_batch, task_batch, resume_id, update_part))
         thread.start()
+
+    return task_ids
 
 
 def parsing_job(raw_job, job_id):
