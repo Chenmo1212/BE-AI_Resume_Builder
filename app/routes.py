@@ -153,7 +153,7 @@ def add_task():
         task_manager = TaskManager()
         task_id = task_manager.create({
             'job_id': job_id,
-            'resume_id': resume_id,
+            'raw_resume_id': resume_id,
             'status': 1,  # 0: waiting, 1: pending, 2: done
             'content': "resume"
         })
@@ -191,7 +191,43 @@ def add_tasks():
 
         task_ids = process_job_list(job_list, resume_id)
 
-        return jsonify({"message": "Task created successfully", "task_ids": task_ids}), 201
+        return jsonify({"message": "Task created successfully", "data": {"task_ids": task_ids}}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route('/tasks/results', methods=['POST'])
+def check_tasks_status():
+    """
+    data: {
+    "task_ids": ["001", "002"]
+    }
+    """
+    try:
+        done = 2  # 0: waiting, 1: pending, 2: done
+        data = request.get_json()
+        task_ids = data.get("task_ids", [])
+        if not task_ids:
+            return jsonify({"error": str('task_ids is empty.')}), 400
+
+        task_manager = TaskManager()
+        resume_manager = ResumeManager()
+        tasks = []
+        for task_id in task_ids:
+            task = task_manager.get(task_id)
+            if not task:
+                tasks.append(None)
+                continue
+
+            resume = {}
+            if task["status"] == done:
+                resume = resume_manager.get(task["new_resume_id"])
+            tasks.append({
+                **task,
+                'resume': resume
+            })
+
+        return jsonify({"message": "Task queried successfully", "data": {"tasks": tasks}}), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
@@ -226,7 +262,7 @@ def process_job_list(job_list, resume_id):
         job_ids.append(job_id)
         task_id = task_manager.create({
             'job_id': job_id,
-            'resume_id': resume_id,
+            'raw_resume_id': resume_id,
             'status': 0,  # 0: waiting, 1: pending, 2: done
             'content': update_part
         })
@@ -289,7 +325,7 @@ def start_task(update_part, resume_id, job_id, task_id):
         'status': 2,  # 0: waiting, 1: pending, 2: done
     })
 
-    resume_manager.create({
+    new_resume_id = resume_manager.create({
         **resume,
         "is_raw": False,
         "raw_id": resume_id,
@@ -299,5 +335,6 @@ def start_task(update_part, resume_id, job_id, task_id):
     task_manager = TaskManager()
     task_manager.update(task_id, {
         'status': 2,  # 0: waiting, 1: pending, 2: done
-        "time_using": time.time() - start_time
+        "time_used": time.time() - start_time,
+        "new_resume_id": new_resume_id
     })
