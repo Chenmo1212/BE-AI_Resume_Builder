@@ -23,7 +23,7 @@ class BaseManager:
             "is_show": True
         })
         result = self.collection.insert_one(data)
-        return result.inserted_id
+        return str(result.inserted_id)
 
     def update(self, document_id, update_data):
         current_time = datetime.now()
