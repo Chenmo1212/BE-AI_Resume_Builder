@@ -3,9 +3,13 @@ from datetime import datetime
 from bson import ObjectId
 
 
-def _convert_id_type(data):
+def _format_data(data: dict) -> dict:
     if data is not None and '_id' in data:
-        data['_id'] = str(data['_id'])
+        data['id'] = str(data['_id'])
+        del data['_id']
+        del data['delete_time']
+        del data['is_show']
+        del data['is_delete']
     return data
 
 
@@ -41,11 +45,11 @@ class BaseManager:
         return result.modified_count
 
     def get(self, document_id, **query_kwargs):
-        document_data = self.collection.find_one({"_id": ObjectId(document_id), **query_kwargs})
-        return _convert_id_type(document_data)
+        document_data = self.collection.find_one({"_id": ObjectId(document_id), "is_delete": False, **query_kwargs})
+        return _format_data(document_data)
 
     def list(self):
-        return [_convert_id_type(doc) for doc in self.collection.find({"is_delete": False})]
+        return [_format_data(doc) for doc in self.collection.find({"is_delete": False})]
 
 
 class ResumeManager(BaseManager):
