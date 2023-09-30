@@ -66,15 +66,19 @@ class Pipeline:
             self.parsed_job = job_post.parse_job_post(verbose=False)
 
         company_name = self.parsed_job["company"]
-        job_title = self.parsed_job["job_title"]
+        job_title = self.parsed_job["job_title"].replace("/", "_")
         today_date = datetime.today().strftime("%Y%m%d")
-        self.folder = f"{self.root_path}/{today_date}__{company_name}__{job_title}"
+        company_folder_name = f"{today_date}__{company_name}__{job_title}"
+
+        self.folder = os.path.join(self.root_path, company_folder_name)
         self._create_company_folder()
+        job_filename = os.path.join(self.folder, job_title)
+        job_filename, _ = os.path.splitext(job_filename)
+        self.resume_filename = job_filename
 
-        job_filename = f"{self.folder}/{job_title}"
-        utils.write_yaml(self.parsed_job, filename=f"{job_filename}.job")
+        utils.write_yaml(self.parsed_job, filename=f"{self.resume_filename}.job")
 
-        print(f'Step 1: Parsing Done: {job_filename}. Time Using: {time.time() - start_time:.6f}')
+        print(f'Step 1: Parsing Done: {self.resume_filename}. Time Using: {time.time() - start_time:.6f}')
 
     def read_resume(self):
         print("=========== Start reading resume ===========")
@@ -148,15 +152,11 @@ class Pipeline:
         return summary
 
     def generate_resume_yaml(self):
-        if not self.parsed_job:
+        if not self.parsed_job or not self.resume_filename:
             self.read_and_parse_job()
         if not self.resume_builder:
             self.read_resume()
 
-        self.resume_filename = os.path.join(
-            self.folder,
-            sanitize_filename(f"{self.parsed_job['job_title']}")
-        )
         self.final_resume = self.resume_builder.finalize()
         utils.write_yaml(self.final_resume, filename=f"{self.resume_filename}.yaml")
 
@@ -189,7 +189,7 @@ class Pipeline:
         start_time = time.time()
 
         if not self.resume_filename:
-            self.generate_resume_yaml()
+            self.read_and_parse_job()
 
         final_resume = Resume_Builder(
             resume=utils.read_yaml(filename=f"{self.resume_filename}.yaml"),
