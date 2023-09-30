@@ -128,8 +128,6 @@ def list_jobs():
 def add_task():
     try:
         data = request.get_json()
-        if 'resume_id' not in data and 'resume' not in data:
-            return jsonify({"error": str('Neither resume_id nor resume have been provided.')}), 400
         if 'job_id' not in data and 'job_text' not in data:
             return jsonify({"error": str('Neither job_id nor job_text have been provided.')}), 400
         update_part = data.get('updatePart', "")
@@ -161,7 +159,30 @@ def add_task():
         task = threading.Thread(target=start_task, args=(update_part, resume_id, job_id, task_id))
         task.start()
 
-        return jsonify({"message": "Task created successfully", "inserted_id": str(task_id)}), 201
+        return jsonify({"message": "Task created successfully", "id": str(task_id)}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route('/task/<task_id>', methods=['PUT'])
+def update_task(task_id):
+    try:
+        data = request.get_json()
+        task_manager = TaskManager()
+        task = task_manager.get(task_id)
+        if not task:
+            return jsonify({"message": "Can not find any document from " + task_id}), 400
+        task_manager.update(task_id, {**task, **data})
+        return jsonify({"message": "Task updated successfully"}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+@app.route('/tasks', methods=['GET'])
+def get_tasks():
+    try:
+        task_manager = TaskManager()
+        tasks = task_manager.list()
+        return jsonify({"message": "Task created successfully", "tasks": tasks}), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
