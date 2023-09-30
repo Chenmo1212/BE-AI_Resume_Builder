@@ -121,7 +121,7 @@ def delete_job(job_id):
 def list_jobs():
     manager = JobManager()
     jobs = manager.list()
-    return jsonify(jobs)
+    return jsonify({"message": "Jobs queried successfully", "jobs": jobs})
 
 
 @app.route('/task', methods=['POST'])
@@ -154,7 +154,7 @@ def add_task():
         task_id = task_manager.create({
             'job_id': job_id,
             'raw_resume_id': resume_id,
-            'status': 1,  # 0: waiting, 1: pending, 2: done
+            'status': 1,  #  -1: default, 0: waiting, 1: pending, 2: done
             'content': "resume"
         })
 
@@ -191,7 +191,7 @@ def add_tasks():
 
         task_ids = process_job_list(job_list, resume_id)
 
-        return jsonify({"message": "Task created successfully", "data": {"task_ids": task_ids}}), 201
+        return jsonify({"message": "Task created successfully", "task_ids": task_ids}), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
@@ -214,6 +214,9 @@ def check_tasks_status():
         resume_manager = ResumeManager()
         tasks = []
         for task_id in task_ids:
+            if not task_id:
+                tasks.append(None)
+                continue
             task = task_manager.get(task_id)
             if not task:
                 tasks.append(None)
@@ -227,7 +230,7 @@ def check_tasks_status():
                 'resume': resume
             })
 
-        return jsonify({"message": "Task queried successfully", "data": {"tasks": tasks}}), 201
+        return jsonify({"message": "Task queried successfully", "tasks": tasks}), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
