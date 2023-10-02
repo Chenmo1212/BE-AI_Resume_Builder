@@ -172,10 +172,13 @@ def update_task(task_id):
         task = task_manager.get(task_id)
         if not task:
             return jsonify({"message": "Can not find any document from " + task_id}), 400
+        if 'id' in data:
+            del data['id']
         task_manager.update(task_id, {**task, **data})
         return jsonify({"message": "Task updated successfully"}), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 400
+
 
 @app.route('/tasks', methods=['GET'])
 def get_tasks():
