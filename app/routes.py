@@ -128,38 +128,49 @@ def list_jobs():
 def add_task():
     try:
         data = request.get_json()
-        if 'job_id' not in data and 'job_text' not in data:
-            return jsonify({"error": str('Neither job_id nor job_text have been provided.')}), 400
-        update_part = data.get('updatePart', "")
-        if not update_part:
-            return jsonify({"message": "Nothing need to be updated, please check updatePart."}), 400
+        job_id = data.get('job_id')
+        job_text = data.get('job_text')
+        resume_id = data.get('resume_id')
+        resume = data.get('resume')
 
-        resume_manager = ResumeManager()
-        if 'resume_id' not in data:
-            if not isinstance(data['resume'], dict):
-                return jsonify({"error": str('Type of resume is not dict.')}), 400
-            resume_id = resume_manager.create(data['resume'])
-        else:
-            resume_id = data['resume_id']
+        if not job_id and not job_text:
+            return jsonify({"error": "Neither job_id nor job_text have been provided."}), 400
 
         job_manager = JobManager()
-        if 'job_id' not in data:
-            job_id = job_manager.create({'raw': data['job_text']})
-        else:
-            job_id = data['job_id']
-
         task_manager = TaskManager()
-        task_id = task_manager.create({
+        resume_manager = ResumeManager()
+
+        if not job_id:
+            job_id = job_manager.create({'raw': job_text})
+
+        init_task_data = {
             'job_id': job_id,
-            'raw_resume_id': resume_id,
-            'status': 1,  #  -1: default, 0: waiting, 1: pending, 2: done
+            'raw_resume_id': "",
+            'status': -1,  # -1: default, 0: waiting, 1: pending, 2: done
             'content': "resume"
-        })
+        }
 
-        task = threading.Thread(target=start_task, args=(update_part, resume_id, job_id, task_id))
-        task.start()
+        if not resume_id and not resume:
+            task = task_manager.query(job_id=job_id)
+            if task:
+                return jsonify({"message": "Exist same task!", "id": str(task['id'])}), 201
+            else:
+                task_id = task_manager.create(init_task_data)
+                return jsonify({"message": "Empty task created successfully", "id": str(task_id)}), 201
 
+        if not resume_id:
+            if not isinstance(resume, dict):
+                return jsonify({"error": "Type of resume is not dict."}), 400
+            resume_id = resume_manager.create(resume)
+        init_task_data['raw_resume_id'] = resume_id
+
+        task = task_manager.query(job_id=job_id)
+        if task:
+            return jsonify({"message": "Exist same task!", "id": str(task['id'])}), 201
+
+        task_id = task_manager.create(init_task_data)
         return jsonify({"message": "Task created successfully", "id": str(task_id)}), 201
+
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
@@ -180,18 +191,39 @@ def update_task(task_id):
         return jsonify({"error": str(e)}), 400
 
 
-@app.route('/tasks', methods=['GET'])
+@app.route('/tasks', methods=['POST'])
 def get_tasks():
+    """
+    data: {
+    "job_ids": ['123', '456']
+    }
+    """
     try:
+        data = request.get_json()
+        tasks = []
+
         task_manager = TaskManager()
-        tasks = task_manager.list()
-        return jsonify({"message": "Task created successfully", "tasks": tasks}), 201
+        job_manager = JobManager()
+        job_ids = data.get('job_ids')
+        for job_id in job_ids:
+            task = task_manager.query(job_id=job_id)
+            job = job_manager.get(job_id)
+            if task and job:
+                tasks.append({
+                    **task,
+                    "title": job['title'],
+                    "company": job['company'],
+                    "link": job['link'],
+                })
+            else:
+                tasks.append({"task": task, "job": job})
+        return jsonify({"message": "Task queried successfully", "data": tasks}), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
 
-@app.route('/tasks', methods=['POST'])
-def add_tasks():
+@app.route('/tasks/run', methods=['POST'])
+def run_tasks():
     """
     data: {
     "resume": resume_json,

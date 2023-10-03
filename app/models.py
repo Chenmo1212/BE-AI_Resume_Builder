@@ -48,6 +48,10 @@ class BaseManager:
         document_data = self.collection.find_one({"_id": ObjectId(document_id), "is_delete": False, **query_kwargs})
         return _format_data(document_data)
 
+    def query(self, **query_kwargs):
+        document_data = self.collection.find_one({"is_delete": False, **query_kwargs})
+        return _format_data(document_data)
+
     def list(self):
         return [_format_data(doc) for doc in self.collection.find({"is_delete": False})]
 
