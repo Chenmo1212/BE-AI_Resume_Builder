@@ -53,12 +53,12 @@ def yaml_to_json(yaml):
             raw_technical = category['skills']
         elif 'Non-technical' == category['category']:
             raw_non_technical = category['skills']
-    for skill in raw_technical:
+    for skill in {}.fromkeys(raw_technical).keys():
         web_skill['technologies'].append({
             "name": skill,
             "level": 3
         })
-    for skill in raw_non_technical:
+    for skill in {}.fromkeys(raw_non_technical).keys():
         web_skill['practices'].append({
             "name": skill,
             "level": 3
