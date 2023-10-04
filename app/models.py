@@ -52,6 +52,18 @@ class BaseManager:
         document_data = self.collection.find_one({"is_delete": False, **query_kwargs})
         return _format_data(document_data)
 
+    def get_by_ids(self, document_ids, **query_kwargs):
+        """
+        Query the corresponding results based on multiple document_ids
+        :param document_ids: A list containing multiple ObjectIds
+        :param query_kwargs: Additional query parameters to filter results
+        :return: List containing query results
+        """
+        document_data = self.collection.find(
+            {"_id": {"$in": [ObjectId(id) for id in document_ids]}, "is_delete": False, **query_kwargs}
+        )
+        return [_format_data(doc) for doc in document_data]
+
     def list(self):
         return [_format_data(doc) for doc in self.collection.find({"is_delete": False})]
 

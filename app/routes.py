@@ -204,16 +204,32 @@ def get_tasks():
 
         task_manager = TaskManager()
         job_manager = JobManager()
+        resume_manager = ResumeManager()
         job_ids = data.get('job_ids')
+        # Batch query tasks and related work
+        tasks_dict = {}
+
+        jobs_dict = {str(job['id']): job for job in job_manager.get_by_ids(job_ids)}
         for job_id in job_ids:
             task = task_manager.query(job_id=job_id)
-            job = job_manager.get(job_id)
+            if task:
+                tasks_dict[job_id] = task
+
+        # Query resumes related to tasks in batches
+        resume_ids = set(task['new_resume_id'] for task in tasks_dict.values() if task.get("status") == 2)
+        resumes_dict = {str(resume['id']): resume for resume in resume_manager.get_by_ids(resume_ids)}
+        # Build results
+        for job_id in job_ids:
+            task = tasks_dict.get(job_id)
+            job = jobs_dict.get(job_id)
             if task and job:
+                resume = resumes_dict.get(task.get('new_resume_id'))
                 tasks.append({
                     **task,
-                    "title": job['title'],
-                    "company": job['company'],
-                    "link": job['link'],
+                    "title": job.get('title'),
+                    "company": job.get('company'),
+                    "link": job.get('link'),
+                    "resume": resume
                 })
             else:
                 tasks.append({"task": task, "job": job})
