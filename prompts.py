@@ -388,7 +388,7 @@ class Resume_Builder(Extractor_LLM):
                         "\n- Merge equivalent skills into a single representation to avoid redundancy and make the skills list more concise."
                         "\n- Ensure that the merged representation is comprehensive and commonly recognized within the respective category."
                         "\n- Update the skills list by replacing the redundant skills with their merged counterparts."
-                        "\n- Each skill must be written in sentence case."
+                        "\n- Each skill must be written in sentence case and remove duplicate skills."
             ),
             HumanMessage(
                 content=(
