@@ -250,9 +250,9 @@ def run_tasks():
         data = request.get_json()
         if 'resume_id' not in data and 'resume' not in data:
             return jsonify({"error": str('Neither resume_id nor resume have been provided.')}), 400
-        job_list = data.get("job_list", [])
-        if not job_list:
-            return jsonify({"error": str('Job_list has not been provided or job_list is empty.')}), 400
+        task_list = data.get("task_list", [])
+        if not task_list:
+            return jsonify({"error": str('Task_list has not been provided or task_list is empty.')}), 400
         resume_manager = ResumeManager()
         if 'resume_id' not in data:
             if not isinstance(data['resume'], dict):
@@ -261,7 +261,7 @@ def run_tasks():
         else:
             resume_id = data['resume_id']
 
-        task_ids = process_job_list(job_list, resume_id)
+        task_ids = process_task_list(task_list, resume_id)
 
         return jsonify({"message": "Task created successfully", "task_ids": task_ids}), 201
     except Exception as e:
@@ -319,33 +319,34 @@ def process_batch(job_ids, task_ids, resume_id, update_part):
         start_task(update_part, resume_id, job_id, task_id)
 
 
-def process_job_list(job_list, resume_id):
-    update_part = "resume"
+def process_task_list(task_list, resume_id):
+    update_part = 'resume'
     batch_size = 5
-    num_jobs = len(job_list)
-    num_batches = (num_jobs + batch_size - 1) // batch_size
+    num_tasks = len(task_list)
+    num_batches = (num_tasks + batch_size - 1) // batch_size
 
     task_manager = TaskManager()
     job_manager = JobManager()
     job_ids = []
     task_ids = []
-    for job in job_list:
-        if 'id' not in job:
-            job_id = job_manager.create({'raw': job['description']})
+    for task in task_list:
+        if 'jobId' not in task:
+            job_id = job_manager.create({'raw': task['description']})
         else:
-            job_id = job['id']
+            job_id = task['jobId']
         job_ids.append(job_id)
-        task_id = task_manager.create({
+        task_id = task['id']
+        task_manager.update(task_id, {
             'job_id': job_id,
             'raw_resume_id': resume_id,
             'status': 0,  # 0: waiting, 1: pending, 2: done
-            'content': update_part
+            'content': task.get('content') or update_part
         })
         task_ids.append(task_id)
 
     for i in range(num_batches):
         start_idx = i * batch_size
-        end_idx = min((i + 1) * batch_size, num_jobs)
+        end_idx = min((i + 1) * batch_size, num_tasks)
         job_batch = job_ids[start_idx:end_idx]
         task_batch = task_ids[start_idx:end_idx]
 
