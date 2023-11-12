@@ -35,6 +35,7 @@ jobs:
             fi
 
             cd ${{ vars.TARGET }}
+            . venv/bin/activate
             pip install -r requirements.txt
             nohup flask run -h 0.0.0.0 -p 9001 > ai_resume.log 2>&1 &
 
