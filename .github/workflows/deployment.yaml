@@ -1,0 +1,42 @@
+name: AI Resume Builder Backend Deployment
+run-name: ${{ github.actor }} is deploying ${{ github.repository }} 🚀
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Step 1 - Check_out-code 🔎
+        uses: actions/checkout@v2
+
+      - name: Step 2 - Deploy to Server 🖥️
+        uses: easingthemes/ssh-deploy@v2.2.11
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+          ARGS: "-rltgoDzvO"
+          SOURCE: "/"
+          REMOTE_HOST: ${{ vars.REMOTE_HOST }}
+          REMOTE_USER: 'root'
+          TARGET: ${{ vars.TARGET }}
+
+      - name: SSH into Server and Start Flask App 🐧
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ vars.REMOTE_HOST }}
+          username: root
+          key: ${{ secrets.PRIVATE_KEY }}
+          port: 22
+          script: |
+            # Use the lsof command to find the process occupying port 9001
+            PID=$(lsof -t -i :9001)
+
+            # If the process is found, kill it
+            if [ -n "$PID" ]; then
+              kill -9 $PID
+            fi
+
+            cd ${{ vars.TARGET }}
+            . venv/bin/activate
+            nohup flask run -h 0.0.0.0 -p 9001 > ai_resume.log 2>&1 &
+
+      - name: Step 5 - Send Wechat Notification 🐣
+        run: python wechat.py ${{ github.repository }} ${{ job.status }} ${{ vars.AGENTID }} ${{ vars.CORPID }} ${{ vars.CORPSECRET }}

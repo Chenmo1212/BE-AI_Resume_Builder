@@ -26,7 +26,7 @@ def read_yaml(yaml_text: str = "", filename: str = "") -> dict:
         except YAMLError as e:
             logger.error(f"The text could not be read.")
             raise e
-    with open(filename, "r") as stream:
+    with open(filename, "r", encoding='utf-8') as stream:
         try:
             return yaml.load(stream)
         except YAMLError as e:
@@ -40,7 +40,7 @@ def read_yaml(yaml_text: str = "", filename: str = "") -> dict:
 
 
 def read_jobfile(filename: str) -> str:
-    with open(filename, "r") as stream:
+    with open(filename, "r", encoding='utf-8') as stream:
         try:
             return stream.read().strip()
         except OSError as e:
@@ -48,21 +48,19 @@ def read_jobfile(filename: str) -> str:
             raise e
 
 
-def write_yaml(d: dict, filename: str = None) -> None:
+def write_yaml(d: dict, filename: str) -> None:
     yaml.allow_unicode = True
-    if filename:
-        with open(filename, "w") as stream:
-            try:
-                yaml.dump(d, stream)
-            except YAMLError as e:
-                logger.error(f"The {filename} could not be written.")
-                raise e
-            except Exception as e:
-                logger.error(
-                    f"The {filename} could not be written due to an unknown error."
-                )
-                raise e
-    return yaml.dump(d, sys.stdout)
+    with open(filename, "w", encoding='utf-8') as stream:
+        try:
+            yaml.dump(d, stream)
+        except YAMLError as e:
+            logger.error(f"The {filename} could not be written.")
+            raise e
+        except Exception as e:
+            logger.error(
+                f"The {filename} could not be written due to an unknown error."
+            )
+            raise e
 
 
 def dict_to_yaml_string(d: dict) -> str:
@@ -72,7 +70,7 @@ def dict_to_yaml_string(d: dict) -> str:
     return stream.getvalue()
 
 
-def generator_key_in_nested_dict(keys: [str | list], nested: dict):
+def generator_key_in_nested_dict(keys, nested):
     if hasattr(nested, "items"):
         for k, v in nested.items():
             if (isinstance(keys, list) and k in keys) or k == keys:
@@ -93,6 +91,40 @@ def get_dict_field(field: str, resume: dict):
         message = f"`{field}` is missing in raw resume."
         logger.warning(message)
     return None
+
+
+def generate_new_tex(yaml_file: str, template_file: str = None) -> str:
+    # set default template file. file location is relative to `templates` directory
+    if not template_file:
+        template_file = "resume.tex"
+
+    dirname, basename = os.path.split(yaml_file)
+    filename, ext = os.path.splitext(basename)
+    filename = os.path.join(dirname, filename)
+
+    # Set up jinja environment and template
+    env = Environment(
+        trim_blocks=True,
+        lstrip_blocks=True,
+        block_start_string="\BLOCK{",
+        block_end_string="}",
+        variable_start_string="\VAR{",
+        variable_end_string="}",
+        comment_start_string="\#{",
+        comment_end_string="}",
+        line_statement_prefix="%%",
+        line_comment_prefix="%#",
+        autoescape=False,
+        loader=FileSystemLoader("templates"),
+    )
+    template = env.get_template(template_file)
+
+    yaml_data = read_yaml(filename=yaml_file)
+    latex_string = template.render(**yaml_data)
+
+    with open(f"{filename}.tex", "wt", encoding='utf-8') as stream:
+        stream.write(latex_string)
+    print("Done")
 
 
 def generate_pdf(yaml_file: str, template_file: str = None) -> str:
@@ -126,7 +158,7 @@ def generate_pdf(yaml_file: str, template_file: str = None) -> str:
     yaml_data = read_yaml(filename=yaml_file)
     latex_string = template.render(**yaml_data)
 
-    with open(f"{filename}.tex", "wt") as stream:
+    with open(f"{filename}.tex", "wt", encoding='utf-8') as stream:
         stream.write(latex_string)
 
     # convert to pdf and clean up temp files
