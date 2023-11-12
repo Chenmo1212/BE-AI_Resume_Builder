@@ -3,6 +3,7 @@ import logging
 import os
 import time
 from datetime import datetime
+
 # from IPython.display import display, Markdown
 from pathvalidate import sanitize_filename
 
@@ -31,7 +32,9 @@ class Pipeline:
             model_kwargs=dict(top_p=0.6, frequency_penalty=0.1),
         )
 
-    def set_raw_resume(self, raw_resume: dict = {}, filename: str = ""):
+    def set_raw_resume(self, raw_resume=None, filename: str = ""):
+        if raw_resume is None:
+            raw_resume = {}
         if not raw_resume and not filename:
             logger.warning("Neither resume text nor filename have been provided.")
             return None
@@ -56,7 +59,9 @@ class Pipeline:
     def read_and_parse_job(self):
         print("=========== Start parsing job information ===========")
         if not self.raw_job and not self.parsed_job:
-            logger.warning("Job_text and Parsed_job are empty, please call set_job_text() first.")
+            logger.warning(
+                "Job_text and Parsed_job are empty, please call set_job_text() first."
+            )
             return None
 
         start_time = time.time()
@@ -78,7 +83,9 @@ class Pipeline:
 
         utils.write_yaml(self.parsed_job, filename=f"{self.resume_filename}.job")
 
-        print(f'Step 1: Parsing Done: {self.resume_filename}. Time Using: {time.time() - start_time:.6f}')
+        print(
+            f"Step 1: Parsing Done: {self.resume_filename}. Time Using: {time.time() - start_time:.6f}"
+        )
 
     def read_resume(self):
         print("=========== Start reading resume ===========")
@@ -95,7 +102,7 @@ class Pipeline:
             parsed_job=self.parsed_job,
             llm_kwargs=self.llm_kwargs,
         )
-        print(f'Step 2: Read Resume Done. Time Using: {time.time() - start_time:.6f}')
+        print(f"Step 2: Read Resume Done. Time Using: {time.time() - start_time:.6f}")
 
     def update_experiences(self, update_yaml=False) -> str:
         print("=========== Start updating experiences ===========")
@@ -107,7 +114,9 @@ class Pipeline:
         if update_yaml:
             experiences_yaml = utils.dict_to_yaml_string(dict(experiences=experiences))
             self.update_resume_data(experiences_yaml)
-        print(f'Step 3: Update Experiences Done. Time Using: {time.time() - start_time:.6f}')
+        print(
+            f"Step 3: Update Experiences Done. Time Using: {time.time() - start_time:.6f}"
+        )
         return experiences
 
     def update_projects(self, update_yaml=False) -> str:
@@ -120,7 +129,9 @@ class Pipeline:
         if update_yaml:
             projects_yaml = utils.dict_to_yaml_string(dict(projects=projects))
             self.update_resume_data(projects_yaml)
-        print(f'Step 4: Update Projects Done. Time Using: {time.time() - start_time:.6f}')
+        print(
+            f"Step 4: Update Projects Done. Time Using: {time.time() - start_time:.6f}"
+        )
         return projects
 
     def update_skills(self, update_yaml=False) -> str:
@@ -135,7 +146,9 @@ class Pipeline:
         if update_yaml:
             skills_yaml = utils.dict_to_yaml_string(dict(skills=skills))
             self.update_resume_data(skills_yaml)
-        print(f'Step 5: Extract Skills From Job Done. Time Using: {time.time() - start_time:.6f}')
+        print(
+            f"Step 5: Extract Skills From Job Done. Time Using: {time.time() - start_time:.6f}"
+        )
         return skills
 
     def update_summary(self, update_yaml=False) -> str:
@@ -148,7 +161,9 @@ class Pipeline:
         if update_yaml:
             summary_yaml = utils.dict_to_yaml_string(dict(summary=summary))
             self.update_resume_data(summary_yaml)
-        print(f'Step 6: Update Summary Done. Time Using: {time.time() - start_time:.6f}')
+        print(
+            f"Step 6: Update Summary Done. Time Using: {time.time() - start_time:.6f}"
+        )
         return summary
 
     def generate_resume_yaml(self):
@@ -169,16 +184,16 @@ class Pipeline:
         if edits:
             new_edit = utils.read_yaml(edits)
             if "experiences" in new_edit:
-                updated.append('experiences')
+                updated.append("experiences")
                 self.resume_builder.experiences = new_edit["experiences"]
             if "projects" in new_edit:
-                updated.append('projects')
+                updated.append("projects")
                 self.resume_builder.projects = new_edit["projects"]
             if "skills" in new_edit:
-                updated.append('projects')
+                updated.append("projects")
                 self.resume_builder.skills = new_edit["skills"]
             if "summary" in new_edit:
-                updated.append('summary')
+                updated.append("summary")
                 self.resume_builder.summary = new_edit["summary"]
 
         self.generate_resume_yaml()
@@ -200,7 +215,9 @@ class Pipeline:
         improvements = final_resume.suggest_improvements(verbose=True)
         improvements_yaml = utils.dict_to_yaml_string(dict(improvements=improvements))
         self.update_resume_data(improvements_yaml)
-        print(f'Step 8: Improve Final Resume Done. Time Using: {time.time() - start_time:.6f}')
+        print(
+            f"Step 8: Improve Final Resume Done. Time Using: {time.time() - start_time:.6f}"
+        )
 
     def generate_tex(self):
         print("=========== Start generate tex ===========")
@@ -255,20 +272,20 @@ class Pipeline:
 
 
 def read_json(filename: str) -> dict:
-    with open(filename, "r", encoding='utf-8') as json_file:
+    with open(filename, "r", encoding="utf-8") as json_file:
         data = json.load(json_file)
     return data
 
 
-if __name__ == '__main__':
-    ## Inputs
+if __name__ == "__main__":
+    # Inputs
     my_files_dir = "my_applications"  # location for all job and resume files
     job_file = "job.txt"  # filename with job post text. The entire job post can be pasted in this file, as is.
     raw_resume_file = "resume_raw.yaml"  # filename for raw resume yaml. See example in repo for instructions.
 
     ai_resume = Pipeline()
-    job = read_json('job.json')
-    resume = read_json('resume.json')
+    job = read_json("job.json")
+    resume = read_json("resume.json")
     ai_resume.set_raw_resume(raw_resume=resume)
     ai_resume.parsed_job = job
     ai_resume.main()
