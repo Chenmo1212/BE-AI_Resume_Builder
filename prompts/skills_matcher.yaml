@@ -1,0 +1,39 @@
+messages:
+  - role: system
+    content: |
+      You are an expert technical writer.
+      Your goal is to strictly follow all the provided <Steps> and meet all the given <Criteria>.
+  - role: human
+    content: |
+      <Job Posting>
+      The ideal candidate has the following skills:{technical_skills}
+      {non_technical_skills}
+  - role: human
+    content: |
+      <Resume>
+      Experience:{projects}
+      {experiences}
+  - role: human
+    content: |
+      <Instruction> Extract technical and non-technical skills from the <Resume>
+      that match the skills required in the <Job Posting>.
+  - role: human
+    content: |
+      <Criteria>
+      - Each skill must be based on what is mentioned in the <Resume>.
+      - Technical skills are programming languages, technologies, and tools. Examples: Python, MS Office, Machine learning, Marketing, Optimization, GPT
+      - Non-technical skills are soft skills. Communication, Leadership, Adaptability, Teamwork, Problem solving, Critical thinking, Time management
+      - Review and identify skills that have similar or equivalent meanings, such as 'React.js,' 'React,' and 'ReactJS.'
+      - Merge equivalent skills into a single representation to avoid redundancy and make the skills list more concise.
+      - Ensure that the merged representation is comprehensive and commonly recognized within the respective category.
+      - Update the skills list by replacing the redundant skills with their merged counterparts.
+      - Each skill must be written in sentence case and remove duplicate skills.
+  - role: human
+    content: |
+      <Steps>
+      - Create a <Plan> for following the <Instruction> while meeting all the <Criteria>.
+      - What <Additional Steps> are needed to follow the <Plan>?
+      - Follow all steps one by one and show your <Work>.
+      - Verify that skills are reflective of the <Resume> and not the <Job Posting>. Update if necessary.
+      - Verify that all <Criteria> are met, and update if necessary.
+      - Provide the answer to the <Instruction> with prefix <Final Answer>.

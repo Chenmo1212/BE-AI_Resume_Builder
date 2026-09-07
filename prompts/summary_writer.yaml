@@ -1,0 +1,41 @@
+messages:
+  - role: system
+    content: |
+      You are an expert technical writer.
+      Your goal is to strictly follow all the provided <Steps> and meet all the given <Criteria>.
+  - role: human
+    content: |
+      <Job Posting>
+      {company}
+      {job_summary}
+  - role: human
+    content: |
+      <Resume>
+      Education:{degrees}
+
+      Experience:{projects}
+      {experiences}
+
+      Skills:{skills}
+  - role: human
+    content: "<Instruction> Create a Professional Summary from my <Resume>."
+  - role: human
+    content: |
+      <Criteria>
+      - The summary must reflect my strong work ethic, highlighting key adjectives
+      - Specify the field in which I have expertise and mention the duration of my experience.
+      - The summary must feature my most impressive and relevant on-the-job achievement.
+      - Clearly articulate what I aim to achieve in this role, emphasizing how I will contribute to the company.
+      - The summary should be concise, comprising 3–4 sentences totaling 100–200 words.
+      - It should incorporate relevant keywords from the job posting that align with my resume.
+      - Mention the company's name and the specific job title in the summary to demonstrate customization.
+      - Ensure correct grammar, spelling, and sentence structure for a polished presentation.
+  - role: human
+    content: |
+      <Steps>
+      - Create a <Plan> for following the <Instruction> while meeting all the <Criteria>.
+      - What <Additional Steps> are needed to follow the <Plan>?
+      - Follow all steps one by one and show your <Work>.
+      - Verify that summary is reflective of my <Resume> and not the <Job Posting>. Update if necessary.
+      - Verify that all <Criteria> are met, and update if necessary.
+      - Provide the answer to the <Instruction> with prefix <Final Answer>.

@@ -25,5 +25,39 @@ def test_load_prompt_unknown_name_raises():
 
 def test_load_prompt_message_count():
     prompt = load_prompt("section_highlighter")
-    # system + human + human = 3 messages
-    assert len(prompt.messages) == 3
+    # system + 5 human = 6 messages
+    assert len(prompt.messages) == 6
+
+
+def test_skills_matcher_has_expected_variables():
+    prompt = load_prompt("skills_matcher")
+    variables = prompt.input_variables
+    assert "technical_skills" in variables
+    assert "non_technical_skills" in variables
+    assert "projects" in variables
+    assert "experiences" in variables
+
+
+def test_summary_writer_has_expected_variables():
+    prompt = load_prompt("summary_writer")
+    variables = prompt.input_variables
+    assert "company" in variables
+    assert "job_summary" in variables
+    assert "degrees" in variables
+    assert "projects" in variables
+    assert "experiences" in variables
+    assert "skills" in variables
+
+
+def test_improver_has_expected_variables():
+    prompt = load_prompt("improver")
+    variables = prompt.input_variables
+    assert "duties" in variables
+    assert "qualifications" in variables
+    assert "technical_skills" in variables
+    assert "non_technical_skills" in variables
+    assert "summary" in variables
+    assert "experiences" in variables
+    assert "projects" in variables
+    assert "education" in variables
+    assert "skills" in variables
