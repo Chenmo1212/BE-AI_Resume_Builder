@@ -5,9 +5,7 @@ import time
 import asyncio
 from datetime import datetime
 
-from pathvalidate import sanitize_filename
 from langchain_openai import ChatOpenAI
-from langchain_core.runnables import RunnableParallel
 
 import utils
 from llm.factory import create_llm
@@ -155,10 +153,11 @@ class Pipeline:
 
     def _get_cumulative_time_from_titles(self, titles) -> int:
         result = 0.0
+        last_date = ""
         for t in titles:
             if "startdate" in t and "enddate" in t:
                 last_date = datetime.today().strftime("%Y-%m-%d") if t["enddate"] == "current" else t["enddate"]
-            result += datediff_years(start_date=t["startdate"], end_date=last_date)
+                result += datediff_years(start_date=t["startdate"], end_date=last_date)
         return round(result)
 
     def _format_projects_for_prompt(self, projects: list) -> list:
@@ -271,19 +270,21 @@ class Pipeline:
         logger.info("=========== Start updating experiences ===========")
         if not self.resume_builder:
             self.read_resume()
-        asyncio.run(asyncio.gather(*[
+        results = asyncio.run(asyncio.gather(*[
             self._rewrite_experience_async(exp)
             for exp in self.resume_builder["experiences_raw"]
         ]))
+        self.resume_builder["experiences"] = list(results)
 
     def update_projects(self):
         logger.info("=========== Start updating projects ===========")
         if not self.resume_builder:
             self.read_resume()
-        asyncio.run(asyncio.gather(*[
+        results = asyncio.run(asyncio.gather(*[
             self._rewrite_project_async(proj)
             for proj in self.resume_builder["projects_raw"]
         ]))
+        self.resume_builder["projects"] = list(results)
 
     def update_skills(self):
         logger.info("=========== Start extracting skills ===========")
