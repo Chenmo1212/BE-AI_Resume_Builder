@@ -5,8 +5,6 @@ import time
 import asyncio
 from datetime import datetime
 
-from langchain_openai import ChatOpenAI
-
 import utils
 from llm.factory import create_llm
 from chains.section_highlighter import build_section_highlighter_chain
