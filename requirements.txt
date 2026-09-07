@@ -48,3 +48,4 @@ tzlocal==5.3.1
 urllib3==2.6.3
 uuid_utils==0.15.0
 zstandard==0.25.0
+ruamel.yaml==0.19.1
