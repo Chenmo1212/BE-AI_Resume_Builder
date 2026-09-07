@@ -35,7 +35,6 @@ for _mod in (
     "langchain.chat_models",
     "langchain.prompts",
     "langchain.schema",
-    "langchain_openai",
 ):
     if _mod not in sys.modules:
         sys.modules[_mod] = MagicMock()
