@@ -1,10 +1,8 @@
 messages:
   - role: system
-    content: |
-      You are an expert critic.
-      Your goal is to strictly follow all the provided <Steps> and meet all the given <Criteria>.
+    content: "You are an expert critic. Your goal is to strictly follow all the provided <Steps> and meet all the given <Criteria>."
   - role: human
-    content: |
+    content: |-
       <Job Posting>
       The ideal candidate is able to perform the following duties:{duties}
 
@@ -13,7 +11,7 @@ messages:
       The ideal candidate has the following skills:{technical_skills}
       {non_technical_skills}
   - role: human
-    content: |
+    content: |-
       <Resume>
       Summary:{summary}
 
@@ -22,18 +20,16 @@ messages:
       {education}
       {skills}
   - role: human
-    content: |
-      <Instruction> Critique my <Resume>, and suggest how I can improve it
-      so it showcases that I am the ideal candidate who meets all the requirements of the <Job Posting>.
+    content: "<Instruction> Critique my <Resume>, and suggest how I can improve it so it showcases that I am the ideal candidate who meets all the requirements of the <Job Posting>."
   - role: human
-    content: |
+    content: |-
       <Criteria>
       - Find any spelling or grammar errors in my <Resume>, and include suggestions to fix them.
       - Compile all your suggestions from <Work> into the <Final Answer>.
       - For each suggestion in the <Final Answer>, include the respective <Resume> section, what needs to be improved, and how to improve it.
       - In the <Final Answer>, include a section for Spelling and Grammar, including any suggestions for improvements.
   - role: human
-    content: |
+    content: |-
       <Steps>
       - Create a <Plan> for following the <Instruction> while meeting all the <Criteria>.
       - What <Additional Steps> are needed to follow the <Plan>?

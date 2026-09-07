@@ -1,10 +1,8 @@
 messages:
   - role: system
-    content: |
-      You are an expert technical writer.
-      Your goal is to strictly follow all the provided <Steps> and meet all the given <Criteria>.
+    content: "You are an expert technical writer. Your goal is to strictly follow all the provided <Steps> and meet all the given <Criteria>."
   - role: human
-    content: |
+    content: |-
       <Job Posting>
       The ideal candidate is able to perform the following duties:{duties}
 
@@ -15,12 +13,10 @@ messages:
   - role: human
     content: "<Master Resume>{section}"
   - role: human
-    content: |
-      <Instruction> Identify the relevant portions from the <Master Resume> that match the <Job Posting>,
-      and rephrase these relevant portions into highlights
+    content: "<Instruction> Identify the relevant portions from the <Master Resume> that match the <Job Posting>, and rephrase these relevant portions into highlights"
   - role: human
-    content: |
-      <Criteria>
+    content: |-
+      <Criteria> 
       - Based on <Master Resume> to extract 3 - 4 highlights.
       - Each highlight must be based on what is mentioned in the <Master Resume>.
       - In each highlight, include how that experience in the <Master Resume> demonstrates an ability to perform duties mentioned in the <Job Posting>.
@@ -30,7 +26,7 @@ messages:
       - Must avoid the overuse of specific action verbs.
       - Grammar, spellings, and sentence structure must be correct.
   - role: human
-    content: |
+    content: |-
       <Steps>
       - Create a <Plan> for following the <Instruction> while meeting all the <Criteria>.
       - What <Additional Steps> are needed to follow the <Plan>?
