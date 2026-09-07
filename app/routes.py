@@ -27,7 +27,8 @@ def insert_resume():
         resume_id = manager.create(data)
         return jsonify({"message": "Resume created successfully", "inserted_id": str(resume_id)}), 201
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        logger.error("Operation failed", exc_info=True)
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route('/resume/<resume_id>', methods=['GET'])
@@ -49,7 +50,8 @@ def update_resume(resume_id):
             return jsonify({"message": "Resume updated successfully"}), 200
         return jsonify({"error": "Resume not found or already deleted"}), 404
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        logger.error("Operation failed", exc_info=True)
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route('/resume/<resume_id>', methods=['DELETE'])
@@ -83,7 +85,8 @@ def insert_job():
         })
         return jsonify({"message": "Job created successfully", "job_id": str(job_id)}), 201
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        logger.error("Operation failed", exc_info=True)
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route('/job/<job_id>', methods=['GET'])
@@ -105,7 +108,8 @@ def update_job(job_id):
             return jsonify({"message": "Job updated successfully"}), 200
         return jsonify({"error": "Job not found or already deleted"}), 404
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        logger.error("Operation failed", exc_info=True)
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route('/job/<job_id>', methods=['DELETE'])
@@ -172,7 +176,8 @@ def add_task():
         return jsonify({"message": "Task created successfully", "id": str(task_id)}), 201
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        logger.error("Operation failed", exc_info=True)
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route('/task/<task_id>', methods=['PUT'])
@@ -188,7 +193,8 @@ def update_task(task_id):
         task_manager.update(task_id, {**task, **data})
         return jsonify({"message": "Task updated successfully"}), 201
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        logger.error("Operation failed", exc_info=True)
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route('/tasks', methods=['POST'])
@@ -235,7 +241,8 @@ def get_tasks():
                 tasks.append({"task": task, "job": job})
         return jsonify({"message": "Task queried successfully", "data": tasks}), 201
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        logger.error("Operation failed", exc_info=True)
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route('/tasks/run', methods=['POST'])
@@ -265,7 +272,8 @@ def run_tasks():
 
         return jsonify({"message": "Task created successfully", "task_ids": task_ids}), 201
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        logger.error("Operation failed", exc_info=True)
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route('/tasks/results', methods=['POST'])
@@ -304,7 +312,8 @@ def check_tasks_status():
 
         return jsonify({"message": "Task queried successfully", "tasks": tasks}), 201
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        logger.error("Operation failed", exc_info=True)
+        return jsonify({"error": "Internal server error"}), 500
 
 
 def process_batch(job_ids, task_ids, resume_id, update_part):

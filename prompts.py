@@ -29,14 +29,10 @@ logger = logging.getLogger(__name__)
 
 # confirm presence of openAI API key
 if "OPENAI_API_KEY" not in os.environ:
-    if os.getenv("OPENAI_API_KEY"):
-        os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
-    else:
-        logger.info(
-            "OPENAI_API_KEY not found in environment. User will be prompted to enter their key."
-        )
-        prompt = "Enter your OpenAI API key:"
-        os.environ["OPENAI_API_KEY"] = input(prompt)
+    raise EnvironmentError(
+        "OPENAI_API_KEY is not set. "
+        "Please set it as an environment variable before starting the application."
+    )
 
 # Set up LLM cache
 langchain.llm_cache = InMemoryCache()
