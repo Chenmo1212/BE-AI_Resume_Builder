@@ -7,9 +7,6 @@ import threading
 import logging
 from pipeline import Pipeline
 
-# create logger
-from prompts import Job_Post
-
 logger = logging.getLogger(__name__)
 
 
@@ -367,8 +364,10 @@ def process_task_list(task_list, resume_id):
 
 
 def parsing_job(raw_job, job_id):
-    job_post = Job_Post(raw_job)
-    parsed_job = job_post.parse_job_post(verbose=False)
+    ai_resume = Pipeline()
+    ai_resume.set_job_text(raw_job)
+    ai_resume.read_and_parse_job()
+    parsed_job = ai_resume.parsed_job
     logger.info('parsed_job:', parsed_job)
     print("parsed_job: Done")
     manager = JobManager()
@@ -384,42 +383,41 @@ def start_task(update_part, resume_id, job_id, task_id):
     resume = resume_manager.get(resume_id)
     job_manager = JobManager()
     job = job_manager.get(job_id)
-
-    ai_resume = Pipeline()
-    ai_resume.set_job_text(job)
-    ai_resume.set_raw_resume(resume)
-
-    if update_part == "resume":
-        ai_resume.main()
-        resume = ai_resume.final_resume
-    elif update_part == "experiences":
-        experiences = ai_resume.update_experiences()
-        resume = {
-            **resume,
-            "work": experiences
-        }
-    elif update_part == "summary":
-        summary = ai_resume.update_summary()
-        resume = {
-            **resume,
-            resume["basics"]["summary"]: summary
-        }
-
-    job_manager.update(job_id, {
-        **ai_resume.parsed_job,
-        'status': 2,  # 0: waiting, 1: pending, 2: done
-    })
-
-    new_resume_id = resume_manager.create({
-        **resume,
-        "is_raw": False,
-        "raw_id": resume_id,
-        "job_id": job_id
-    })
-
     task_manager = TaskManager()
-    task_manager.update(task_id, {
-        'status': 2,  # 0: waiting, 1: pending, 2: done
-        "time_used": time.time() - start_time,
-        "new_resume_id": new_resume_id
-    })
+
+    try:
+        ai_resume = Pipeline()
+        ai_resume.set_job_text(job)
+        ai_resume.set_raw_resume(resume)
+
+        if update_part == "resume":
+            ai_resume.main()
+            resume = ai_resume.final_resume
+        elif update_part == "experiences":
+            ai_resume.update_experiences()
+            resume = {**resume, "work": ai_resume.resume_builder["experiences"]}
+        elif update_part == "summary":
+            ai_resume.update_summary()
+            resume = {**resume, "basics": {**resume["basics"], "summary": ai_resume.resume_builder["summary"]}}
+
+        job_manager.update(job_id, {**ai_resume.parsed_job, 'status': 2})
+
+        new_resume_id = resume_manager.create({
+            **resume,
+            "is_raw": False,
+            "raw_id": resume_id,
+            "job_id": job_id,
+        })
+
+        task_manager.update(task_id, {
+            'status': 2,
+            "time_used": time.time() - start_time,
+            "new_resume_id": new_resume_id,
+        })
+
+    except Exception:
+        logger.error("Pipeline failed for task %s", task_id, exc_info=True)
+        task_manager.update(task_id, {
+            'status': -2,
+            'error': 'Pipeline failed',
+        })

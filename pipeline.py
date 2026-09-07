@@ -2,17 +2,28 @@ import json
 import logging
 import os
 import time
+import asyncio
 from datetime import datetime
 
-# from IPython.display import display, Markdown
 from pathvalidate import sanitize_filename
+from langchain_openai import ChatOpenAI
+from langchain_core.runnables import RunnableParallel
 
 import utils
-
-from prompts import Job_Post, Resume_Builder
+from llm.factory import create_llm
+from chains.section_highlighter import build_section_highlighter_chain
+from chains.skills_matcher import build_skills_matcher_chain
+from chains.summary_writer import build_summary_writer_chain
+from chains.improver import build_improver_chain
+from prompts import (
+    Job_Description,
+    Job_Skills,
+    format_list_as_string,
+    format_prompt_inputs_as_strings,
+    datediff_years,
+)
 from yaml_to_json import yaml_to_json
 
-# create logger
 logger = logging.getLogger(__name__)
 
 
@@ -23,7 +34,7 @@ class Pipeline:
         self.raw_resume: dict = {}
         self.final_resume: dict = {}
         self.parsed_job: dict = {}
-        self.resume_builder = None
+        self.resume_builder: dict = {}  # holds processed resume sections
         self.resume_json: str = ""
         self.resume_filename: str = ""
         self.folder: str = ""
@@ -31,6 +42,12 @@ class Pipeline:
             model_name=openai_model_name,
             model_kwargs=dict(top_p=0.6, frequency_penalty=0.1),
         )
+        self._llm = None  # lazily initialized
+
+    def _get_llm(self):
+        if self._llm is None:
+            self._llm = create_llm(**self.llm_kwargs)
+        return self._llm
 
     def set_raw_resume(self, raw_resume=None, filename: str = ""):
         if raw_resume is None:
@@ -57,18 +74,22 @@ class Pipeline:
             os.makedirs(self.folder)
 
     def read_and_parse_job(self):
-        print("=========== Start parsing job information ===========")
+        logger.info("=========== Start parsing job information ===========")
         if not self.raw_job and not self.parsed_job:
-            logger.warning(
-                "Job_text and Parsed_job are empty, please call set_job_text() first."
-            )
+            logger.warning("Job_text and Parsed_job are empty, please call set_job_text() first.")
             return None
 
         start_time = time.time()
 
         if not self.parsed_job:
-            job_post = Job_Post(self.raw_job)
-            self.parsed_job = job_post.parse_job_post(verbose=False)
+            llm = self._get_llm()
+            # Use with_structured_output for job parsing
+            job_extractor = llm.with_structured_output(Job_Description)
+            skills_extractor = llm.with_structured_output(Job_Skills)
+            parsed_job = job_extractor.invoke(self.raw_job)
+            job_skills = skills_extractor.invoke(self.raw_job)
+            if parsed_job and job_skills:
+                self.parsed_job = {**parsed_job.dict(), **job_skills.dict()}
 
         company_name = self.parsed_job["company"]
         job_title = self.parsed_job["job_title"].replace("/", "_")
@@ -82,221 +103,262 @@ class Pipeline:
         self.resume_filename = job_filename
 
         utils.write_yaml(self.parsed_job, filename=f"{self.resume_filename}.job")
-
-        print(
-            f"Step 1: Parsing Done: {self.resume_filename}. Time Using: {time.time() - start_time:.6f}"
-        )
+        logger.info(f"Parsing done in {time.time() - start_time:.2f}s")
 
     def read_resume(self):
-        print("=========== Start reading resume ===========")
-        start_time = time.time()
-
+        logger.info("=========== Start reading resume ===========")
         if not self.parsed_job:
             self.read_and_parse_job()
         if not self.raw_resume:
             logger.warning("Resume_text is empty, please call set_resume_text() first.")
             return None
+        # Initialize resume_builder as a dict holding processed sections
+        self.resume_builder = {
+            "basic_info": {
+                **utils.get_dict_field(field="basics", resume=self.raw_resume),
+                "label": self.parsed_job["job_title"],
+            },
+            "education": utils.get_dict_field(field="education", resume=self.raw_resume),
+            "experiences_raw": utils.get_dict_field(field="work", resume=self.raw_resume),
+            "projects_raw": utils.get_dict_field(field="projects", resume=self.raw_resume),
+            "skills_raw": utils.get_dict_field(field="skills", resume=self.raw_resume),
+            "summary_raw": utils.get_dict_field(field="summary", resume=self.raw_resume["basics"]),
+            "achievements": utils.get_dict_field(field="achievements", resume=self.raw_resume.get("activities", {})),
+            "experiences": None,
+            "projects": None,
+            "skills": None,
+            "summary": "",
+        }
 
-        self.resume_builder = Resume_Builder(
-            resume=self.raw_resume,
-            parsed_job=self.parsed_job,
-            llm_kwargs=self.llm_kwargs,
-        )
-        print(f"Step 2: Read Resume Done. Time Using: {time.time() - start_time:.6f}")
+    def _get_degrees(self) -> list:
+        result = []
+        for degrees in utils.generator_key_in_nested_dict("degrees", self.raw_resume):
+            for degree in degrees:
+                if isinstance(degree["names"], list):
+                    result.extend(degree["names"])
+                elif isinstance(degree["names"], str):
+                    result.append(degree["names"])
+        return result
 
-    def update_experiences(self, update_yaml=False) -> str:
-        print("=========== Start updating experiences ===========")
-        start_time = time.time()
-        if not self.resume_builder:
-            self.read_resume()
-        experiences = self.resume_builder.rewrite_unedited_experiences(verbose=False)
-        self.resume_builder.experiences = experiences
-        if update_yaml:
-            experiences_yaml = utils.dict_to_yaml_string(dict(experiences=experiences))
-            self.update_resume_data(experiences_yaml)
-        print(
-            f"Step 3: Update Experiences Done. Time Using: {time.time() - start_time:.6f}"
-        )
-        return experiences
+    def _format_experiences_for_prompt(self, experiences: list) -> list:
+        result = []
+        for exp in experiences:
+            curr = ""
+            if "titles" in exp:
+                exp_time = self._get_cumulative_time_from_titles(exp["titles"])
+                curr += f"{exp_time} years experience in:"
+            if "highlights" in exp:
+                curr += format_list_as_string(exp["highlights"], list_sep="\n  - ")
+                curr += "\n"
+                result.append(curr)
+        return result
 
-    def update_projects(self, update_yaml=False) -> str:
-        print("=========== Start updating projects ===========")
-        start_time = time.time()
-        if not self.resume_builder:
-            self.read_resume()
-        projects = self.resume_builder.rewrite_projects_desc(verbose=False)
-        self.resume_builder.projects = projects
-        if update_yaml:
-            projects_yaml = utils.dict_to_yaml_string(dict(projects=projects))
-            self.update_resume_data(projects_yaml)
-        print(
-            f"Step 4: Update Projects Done. Time Using: {time.time() - start_time:.6f}"
-        )
-        return projects
+    def _get_cumulative_time_from_titles(self, titles) -> int:
+        result = 0.0
+        for t in titles:
+            if "startdate" in t and "enddate" in t:
+                last_date = datetime.today().strftime("%Y-%m-%d") if t["enddate"] == "current" else t["enddate"]
+            result += datediff_years(start_date=t["startdate"], end_date=last_date)
+        return round(result)
 
-    def update_skills(self, update_yaml=False) -> str:
-        """
-        This will match the required skills from the job post with your resume sections
-        Outputs a combined list of skills extracted from the job post and included in the raw resume
-        """
-        print("=========== Start extracting skills ===========")
-        start_time = time.time()
-        skills = self.resume_builder.extract_matched_skills(verbose=False)
-        self.resume_builder.skills = skills
-        if update_yaml:
-            skills_yaml = utils.dict_to_yaml_string(dict(skills=skills))
-            self.update_resume_data(skills_yaml)
-        print(
-            f"Step 5: Extract Skills From Job Done. Time Using: {time.time() - start_time:.6f}"
-        )
+    def _format_projects_for_prompt(self, projects: list) -> list:
+        result = []
+        for proj in projects:
+            curr = ""
+            if "desc" in proj:
+                curr += format_list_as_string(proj["desc"], list_sep="\n  - ")
+                curr += "\n"
+                result.append(curr)
+        return result
+
+    def _format_skills_for_prompt(self, skills: list) -> list:
+        result = []
+        for cat in skills:
+            curr = ""
+            if cat.get("category", ""):
+                curr += f"{cat['category']}: "
+            if "skills" in cat:
+                curr += "Proficient in " + ", ".join(cat["skills"])
+                result.append(curr)
+        return result
+
+    def _format_skills_raw(self, skills_raw) -> list:
+        skills = [
+            {"category": "Technical", "skills": []},
+            {"category": "Non-technical", "skills": []},
+        ]
+        for s in skills_raw:
+            if s != "practices":
+                skills[0]["skills"] += [item["name"] for item in skills_raw[s]]
+            else:
+                skills[1]["skills"] += [item["name"] for item in skills_raw[s]]
         return skills
 
-    def update_summary(self, update_yaml=False) -> str:
-        print("=========== Start updating summary ===========")
+    async def _rewrite_experience_async(self, exp_raw: dict) -> dict:
+        exp = dict(exp_raw)
+        experience_unedited = exp.get("summary") if exp.get("unedited", False) else ""
+        if experience_unedited:
+            chain = build_section_highlighter_chain(self._get_llm())
+            inputs = format_prompt_inputs_as_strings(
+                prompt_inputs=["duties", "qualifications", "technical_skills", "non_technical_skills"],
+                **self.parsed_job,
+                section=experience_unedited,
+            )
+            result = await chain.ainvoke(inputs)
+            highlights = sorted(result.final_answer, key=lambda d: d.relevance * -1)
+            exp["highlights"] = [h.highlight for h in highlights]
+        return exp
+
+    async def _rewrite_project_async(self, proj_raw: dict) -> dict:
+        proj = dict(proj_raw) if isinstance(proj_raw, dict) else proj_raw
+        proj_unedited = proj.get("summary") if proj.get("unedited", False) else ""
+        if proj_unedited:
+            desc_combined = proj_unedited + " using " + proj.get("skills", "")
+            chain = build_section_highlighter_chain(self._get_llm())
+            inputs = format_prompt_inputs_as_strings(
+                prompt_inputs=["duties", "qualifications", "technical_skills", "non_technical_skills"],
+                **self.parsed_job,
+                section=desc_combined,
+            )
+            result = await chain.ainvoke(inputs)
+            highlights = sorted(result.final_answer, key=lambda d: d.relevance * -1)
+            proj["highlights"] = [h.highlight for h in highlights]
+        return proj
+
+    async def _extract_skills_async(self) -> list:
+        chain = build_skills_matcher_chain(self._get_llm())
+        experiences_formatted = self._format_experiences_for_prompt(
+            self.resume_builder["experiences_raw"]
+        )
+        projects_formatted = self._format_projects_for_prompt(
+            self.resume_builder["projects_raw"]
+        )
+        inputs = format_prompt_inputs_as_strings(
+            prompt_inputs=["technical_skills", "non_technical_skills", "projects", "experiences"],
+            **self.parsed_job,
+            experiences=experiences_formatted,
+            projects=projects_formatted,
+        )
+        result = await chain.ainvoke(inputs)
+        extracted = result.final_answer
+        skills = []
+        if extracted.technical_skills:
+            skills.append({"category": "Technical", "skills": extracted.technical_skills})
+        if extracted.non_technical_skills:
+            skills.append({"category": "Non-technical", "skills": extracted.non_technical_skills})
+        return skills
+
+    async def _run_parallel_steps(self):
+        """Run experience rewriting, project rewriting, and skill extraction in parallel."""
+        logger.info("=========== Starting parallel steps ===========")
         start_time = time.time()
+
+        exp_tasks = [self._rewrite_experience_async(exp) for exp in self.resume_builder["experiences_raw"]]
+        proj_tasks = [self._rewrite_project_async(proj) for proj in self.resume_builder["projects_raw"]]
+
+        experiences, projects, skills = await asyncio.gather(
+            asyncio.gather(*exp_tasks),
+            asyncio.gather(*proj_tasks),
+            self._extract_skills_async(),
+        )
+
+        self.resume_builder["experiences"] = list(experiences)
+        self.resume_builder["projects"] = list(projects)
+        self.resume_builder["skills"] = skills
+        logger.info(f"Parallel steps done in {time.time() - start_time:.2f}s")
+
+    def update_experiences(self):
+        logger.info("=========== Start updating experiences ===========")
         if not self.resume_builder:
             self.read_resume()
-        summary = self.resume_builder.write_summary(verbose=True)
-        self.resume_builder.summary = summary
-        if update_yaml:
-            summary_yaml = utils.dict_to_yaml_string(dict(summary=summary))
-            self.update_resume_data(summary_yaml)
-        print(
-            f"Step 6: Update Summary Done. Time Using: {time.time() - start_time:.6f}"
+        asyncio.run(asyncio.gather(*[
+            self._rewrite_experience_async(exp)
+            for exp in self.resume_builder["experiences_raw"]
+        ]))
+
+    def update_projects(self):
+        logger.info("=========== Start updating projects ===========")
+        if not self.resume_builder:
+            self.read_resume()
+        asyncio.run(asyncio.gather(*[
+            self._rewrite_project_async(proj)
+            for proj in self.resume_builder["projects_raw"]
+        ]))
+
+    def update_skills(self):
+        logger.info("=========== Start extracting skills ===========")
+        if not self.resume_builder:
+            self.read_resume()
+        self.resume_builder["skills"] = asyncio.run(self._extract_skills_async())
+
+    def update_summary(self):
+        logger.info("=========== Start updating summary ===========")
+        if not self.resume_builder:
+            self.read_resume()
+        chain = build_summary_writer_chain(self._get_llm())
+        inputs = format_prompt_inputs_as_strings(
+            prompt_inputs=["company", "job_summary", "degrees", "projects", "experiences", "skills"],
+            **self.parsed_job,
+            degrees=self._get_degrees(),
+            projects=self._format_projects_for_prompt(self.resume_builder["projects"]),
+            experiences=self._format_experiences_for_prompt(self.resume_builder["experiences"]),
+            skills=self._format_skills_for_prompt(self.resume_builder["skills"]),
         )
-        return summary
+        result = chain.invoke(inputs)
+        self.resume_builder["summary"] = result.final_answer
+
+    def improve_final_resume(self):
+        logger.info("=========== Start improving final resume ===========")
+        chain = build_improver_chain(self._get_llm())
+        inputs = format_prompt_inputs_as_strings(
+            prompt_inputs=["duties", "qualifications", "technical_skills", "non_technical_skills",
+                           "summary", "experiences", "projects", "education", "skills"],
+            **self.parsed_job,
+            education=utils.dict_to_yaml_string(dict(Education=self.resume_builder["education"])),
+            projects=utils.dict_to_yaml_string(dict(Projects=self.resume_builder["projects"])),
+            summary=self.resume_builder["summary"],
+            experiences=utils.dict_to_yaml_string(dict(Experiences=self.resume_builder["experiences"])),
+            skills=utils.dict_to_yaml_string(dict(Skills=self.resume_builder["skills"])),
+        )
+        chain.invoke(inputs)  # improvements are informational; result logged but not stored
+
+    def finalize(self) -> dict:
+        self.final_resume = dict(
+            basics={**self.resume_builder["basic_info"], "summary": self.resume_builder["summary"]},
+            education=self.resume_builder["education"],
+            work=self.resume_builder["experiences"],
+            projects=self.resume_builder["projects"],
+            skills=self.resume_builder["skills"],
+            activities={"achievements": self.resume_builder["achievements"]},
+        )
+        return self.final_resume
 
     def generate_resume_yaml(self):
         if not self.parsed_job or not self.resume_filename:
             self.read_and_parse_job()
         if not self.resume_builder:
             self.read_resume()
-
-        self.final_resume = self.resume_builder.finalize()
+        self.final_resume = self.finalize()
         utils.write_yaml(self.final_resume, filename=f"{self.resume_filename}.yaml")
-
-    def update_resume_data(self, edits):
-        # Review the generated output in previous cell.
-        # If any updates are needed, copy the cell output below between the triple quotes
-        # Set value to """" """" if no edits are needed
-        edits = edits.strip()
-        updated = []
-        if edits:
-            new_edit = utils.read_yaml(edits)
-            if "experiences" in new_edit:
-                updated.append("experiences")
-                self.resume_builder.experiences = new_edit["experiences"]
-            if "projects" in new_edit:
-                updated.append("projects")
-                self.resume_builder.projects = new_edit["projects"]
-            if "skills" in new_edit:
-                updated.append("projects")
-                self.resume_builder.skills = new_edit["skills"]
-            if "summary" in new_edit:
-                updated.append("summary")
-                self.resume_builder.summary = new_edit["summary"]
-
-        self.generate_resume_yaml()
-        print(f"Successfully: {', '.join(updated)} updated successfully")
-
-    def improve_final_resume(self):
-        print("=========== Start improving final resume ===========")
-        start_time = time.time()
-
-        if not self.resume_filename:
-            self.read_and_parse_job()
-
-        final_resume = Resume_Builder(
-            resume=utils.read_yaml(filename=f"{self.resume_filename}.yaml"),
-            parsed_job=utils.read_yaml(filename=f"{self.resume_filename}.job"),
-            is_final=True,
-            llm_kwargs=self.llm_kwargs,
-        )
-        improvements = final_resume.suggest_improvements(verbose=True)
-        improvements_yaml = utils.dict_to_yaml_string(dict(improvements=improvements))
-        self.update_resume_data(improvements_yaml)
-        print(
-            f"Step 8: Improve Final Resume Done. Time Using: {time.time() - start_time:.6f}"
-        )
-
-    def generate_tex(self):
-        print("=========== Start generate tex ===========")
-        utils.generate_new_tex(yaml_file=f"{self.resume_filename}.yaml")
 
     def generate_json(self):
         resume_yaml = utils.read_yaml(filename=f"{self.resume_filename}.yaml")
         self.final_resume = yaml_to_json(resume_yaml)
-
-        # Write the data to the JSON file
         with open(f"{self.resume_filename}.json", "w", encoding="utf-8") as json_file:
             json.dump(self.final_resume, json_file)
-
-        print("Successfully generate json file.")
-
-    def generate_pdf(self):
-        print("=========== Start update experiences ===========")
-        # Most common errors during pdf generation occur due to special characters.
-        # Escape them with backslashes in the yaml, e.g. $ -> \$
-        pdf_file = utils.generate_pdf(yaml_file=f"{self.resume_filename}.yaml")
-        # display(Markdown((f"[{pdf_file}](<{pdf_file}>)")))
+        logger.info("Successfully generated json file.")
 
     def main(self):
-        # Step 1 - Read and parse job posting
+        # Step 1 — parse job posting
         self.read_and_parse_job()
-
-        # Step 2 - read raw resume and create Resume builder object
+        # Step 2 — read raw resume
         self.read_resume()
-
-        # Step 3 - Rephrase unedited experiences. Try re-running cells in case of missing answers or hallucinations.
-        self.update_experiences()
-
-        # Step 4 - Rephrase projects
-        self.update_projects()
-
-        # Step 5 - Extract skills
-        self.update_skills()
-
-        # Step 6 - Create a resume summary
+        # Step 3 — parallel: rewrite experiences, projects, extract skills
+        asyncio.run(self._run_parallel_steps())
+        # Step 4 — write summary (depends on Step 3)
         self.update_summary()
-
-        # Step 7 - Generate final resume yaml for review
-        self.generate_resume_yaml()
-
-        # Step 8 - Identify resume improvements
+        # Step 5 — improve final resume
         self.improve_final_resume()
-
-        # Step 9 - Generate pdf from yaml
-        # generate_pdf(resume_filename)
-        self.generate_tex()
+        # Step 6 — finalize and persist
+        self.generate_resume_yaml()
         self.generate_json()
-
-
-def read_json(filename: str) -> dict:
-    with open(filename, "r", encoding="utf-8") as json_file:
-        data = json.load(json_file)
-    return data
-
-
-if __name__ == "__main__":
-    # Inputs
-    my_files_dir = "my_applications"  # location for all job and resume files
-    job_file = "job.txt"  # filename with job post text. The entire job post can be pasted in this file, as is.
-    raw_resume_file = "resume_raw.yaml"  # filename for raw resume yaml. See example in repo for instructions.
-
-    ai_resume = Pipeline()
-    job = read_json("job.json")
-    resume = read_json("resume.json")
-    ai_resume.set_raw_resume(raw_resume=resume)
-    ai_resume.parsed_job = job
-    ai_resume.main()
-
-    # job_content = utils.read_jobfile(filename="./my_applications/job.txt")
-    # resume_content = utils.read_yaml(filename="./my_applications/resume_raw.yaml")
-
-    # with open(f"./my_applications/resume_raw.json", "r") as json_file:
-    #     resume_content = json.load(json_file)
-
-    # ai_resume.resume_filename = "my_applications/20230919__Avanade__Frontend Developer/Frontend Developer"
-    # NOIR.improve_final_resume()
-    # ai_resume.generate_tex()
-    # ai_resume.generate_json()
