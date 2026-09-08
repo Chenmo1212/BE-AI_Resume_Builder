@@ -19,6 +19,8 @@ def build_section_highlighter_chain(llm: BaseChatModel) -> Runnable:
         A LangChain Runnable expecting keys:
         duties, qualifications, technical_skills, non_technical_skills, section
     """
-    prompt = load_prompt("section_highlighter")
     parser = PydanticOutputParser(pydantic_object=Resume_Section_Highlighter_Output)
+    prompt = load_prompt("section_highlighter").partial(
+        format_instructions=parser.get_format_instructions()
+    )
     return prompt | llm | parser

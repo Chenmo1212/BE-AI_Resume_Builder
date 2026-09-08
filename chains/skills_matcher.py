@@ -19,6 +19,8 @@ def build_skills_matcher_chain(llm: BaseChatModel) -> Runnable:
         A LangChain Runnable expecting keys:
         technical_skills, non_technical_skills, projects, experiences
     """
-    prompt = load_prompt("skills_matcher")
     parser = PydanticOutputParser(pydantic_object=Resume_Skills_Matcher_Output)
+    prompt = load_prompt("skills_matcher").partial(
+        format_instructions=parser.get_format_instructions()
+    )
     return prompt | llm | parser

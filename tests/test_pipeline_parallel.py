@@ -91,6 +91,74 @@ def test_pipeline_sets_error_status_on_failure():
     assert final_call_kwargs.get('status') == -2
 
 
+
+
+def test_start_task_passes_raw_job_text_to_pipeline():
+    """start_task must pass the stored job's raw text, not the whole document."""
+    from app.routes import start_task
+
+    mock_resume_manager = MagicMock()
+    mock_resume_manager.get.return_value = {"basics": {"summary": ""}}
+    mock_job_manager = MagicMock()
+    mock_job_manager.get.return_value = {"raw": "Software Engineer at Acme"}
+    mock_task_manager = MagicMock()
+
+    with patch('app.routes.ResumeManager', return_value=mock_resume_manager), \
+         patch('app.routes.JobManager', return_value=mock_job_manager), \
+         patch('app.routes.TaskManager', return_value=mock_task_manager), \
+         patch('app.routes.Pipeline') as mock_pipeline_cls, \
+         patch('app.routes.push_event'):
+        pipeline = mock_pipeline_cls.return_value
+        pipeline.parsed_job = {}
+        pipeline.resume_builder = {"summary": "Updated summary"}
+        pipeline.final_resume = {}
+
+        start_task("summary", "resume_id", "job_id", "task_id")
+
+    pipeline.set_job_text.assert_called_once_with("Software Engineer at Acme")
+
+
+
+def test_read_and_parse_job_uses_text_parser_for_structured_job_output(tmp_path):
+    """Job parsing must not use response_format-based structured output."""
+    import json
+    from pipeline import Pipeline
+
+    job = {
+        "company": "Acme Corp",
+        "job_title": "Software Engineer",
+        "job_link": "https://example.com",
+        "team": "Platform",
+        "job_summary": "Build software",
+        "salary": "",
+        "duties": ["Build APIs"],
+        "qualifications": ["Python experience"],
+        "is_fully_remote": True,
+    }
+    skills = {
+        "technical_skills": ["Python"],
+        "non_technical_skills": ["Communication"],
+    }
+    llm = MagicMock()
+    llm.with_structured_output.side_effect = AssertionError(
+        "DeepSeek-compatible parsing must not use with_structured_output"
+    )
+    llm.invoke.side_effect = [json.dumps(job), json.dumps(skills)]
+
+    pipeline = Pipeline(
+        root_path=str(tmp_path),
+        ai_config={"provider": "deepseek", "model": "deepseek-v4-flash"},
+    )
+    pipeline.set_job_text("Software Engineer at Acme Corp")
+    pipeline._get_llm = MagicMock(return_value=llm)
+
+    with patch('pipeline.utils.write_yaml'):
+        pipeline.read_and_parse_job()
+
+    assert pipeline.parsed_job["company"] == "Acme Corp"
+    assert pipeline.parsed_job["technical_skills"] == ["Python"]
+    assert llm.invoke.call_count == 2
+
 def test_pipeline_uses_ai_config_model():
     """Pipeline must pass model from ai_config to create_llm."""
     ai_config = {"model": "gpt-4o", "temperature": 0.3, "sections": ["experience", "projects", "skills", "summary"]}

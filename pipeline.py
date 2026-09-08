@@ -6,6 +6,7 @@ import asyncio
 from datetime import datetime
 
 import utils
+from langchain_core.output_parsers import PydanticOutputParser
 from llm.factory import create_llm
 from chains.section_highlighter import build_section_highlighter_chain
 from chains.skills_matcher import build_skills_matcher_chain
@@ -97,13 +98,20 @@ class Pipeline:
 
         if not self.parsed_job:
             llm = self._get_llm()
-            # Use with_structured_output for job parsing
-            job_extractor = llm.with_structured_output(Job_Description)
-            skills_extractor = llm.with_structured_output(Job_Skills)
-            parsed_job = job_extractor.invoke(self.raw_job)
-            job_skills = skills_extractor.invoke(self.raw_job)
+            job_parser = PydanticOutputParser(pydantic_object=Job_Description)
+            skills_parser = PydanticOutputParser(pydantic_object=Job_Skills)
+            job_response = llm.invoke(
+                f"Extract the job description from the following job posting.\n"
+                f"{job_parser.get_format_instructions()}\n\n{self.raw_job}"
+            )
+            skills_response = llm.invoke(
+                f"Extract the technical and non-technical skills from the following job posting.\n"
+                f"{skills_parser.get_format_instructions()}\n\n{self.raw_job}"
+            )
+            parsed_job = job_parser.parse(getattr(job_response, "content", job_response))
+            job_skills = skills_parser.parse(getattr(skills_response, "content", skills_response))
             if parsed_job and job_skills:
-                self.parsed_job = {**parsed_job.dict(), **job_skills.dict()}
+                self.parsed_job = {**parsed_job.model_dump(), **job_skills.model_dump()}
 
         company_name = self.parsed_job["company"]
         job_title = self.parsed_job["job_title"].replace("/", "_")
@@ -214,11 +222,13 @@ class Pipeline:
         experience_unedited = exp.get("summary") if exp.get("unedited", False) else ""
         if experience_unedited:
             chain = build_section_highlighter_chain(self._get_llm())
-            inputs = format_prompt_inputs_as_strings(
-                prompt_inputs=["duties", "qualifications", "technical_skills", "non_technical_skills"],
-                **self.parsed_job,
-                section=experience_unedited,
-            )
+            inputs = {
+                **format_prompt_inputs_as_strings(
+                    prompt_inputs=["duties", "qualifications", "technical_skills", "non_technical_skills"],
+                    **self.parsed_job,
+                ),
+                "section": experience_unedited,
+            }
             result = await chain.ainvoke(inputs)
             highlights = sorted(result.final_answer, key=lambda d: d.relevance * -1)
             exp["highlights"] = [h.highlight for h in highlights]
@@ -230,11 +240,13 @@ class Pipeline:
         if proj_unedited:
             desc_combined = proj_unedited + " using " + proj.get("skills", "")
             chain = build_section_highlighter_chain(self._get_llm())
-            inputs = format_prompt_inputs_as_strings(
-                prompt_inputs=["duties", "qualifications", "technical_skills", "non_technical_skills"],
-                **self.parsed_job,
-                section=desc_combined,
-            )
+            inputs = {
+                **format_prompt_inputs_as_strings(
+                    prompt_inputs=["duties", "qualifications", "technical_skills", "non_technical_skills"],
+                    **self.parsed_job,
+                ),
+                "section": desc_combined,
+            }
             result = await chain.ainvoke(inputs)
             highlights = sorted(result.final_answer, key=lambda d: d.relevance * -1)
             proj["highlights"] = [h.highlight for h in highlights]
@@ -353,7 +365,10 @@ class Pipeline:
             experiences=utils.dict_to_yaml_string(dict(Experiences=self.resume_builder["experiences"])),
             skills=utils.dict_to_yaml_string(dict(Skills=self.resume_builder["skills"])),
         )
-        chain.invoke(inputs)  # improvements are informational; result logged but not stored
+        try:
+            chain.invoke(inputs)  # improvements are informational; result logged but not stored
+        except Exception:
+            logger.warning("improve_final_resume parsing failed — skipping (non-fatal)", exc_info=True)
 
     def finalize(self) -> dict:
         self.final_resume = dict(

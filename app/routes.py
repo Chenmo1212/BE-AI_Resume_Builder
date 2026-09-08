@@ -394,7 +394,7 @@ def start_task(update_part, resume_id, job_id, task_id, ai_config: dict = None):
     try:
         push_event(task_id, "parsing_job", 5, "running")
         ai_resume = Pipeline(ai_config=ai_config)
-        ai_resume.set_job_text(job)
+        ai_resume.set_job_text(job["raw"])
         ai_resume.set_raw_resume(resume)
         ai_resume.read_and_parse_job()
         push_event(task_id, "parsing_job", 20, "running")

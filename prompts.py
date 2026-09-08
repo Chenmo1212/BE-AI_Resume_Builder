@@ -1,7 +1,7 @@
 import logging
 import os
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 from dotenv import load_dotenv
 from dateutil import parser as dateparser
 from dateutil.relativedelta import relativedelta
@@ -56,16 +56,16 @@ class Job_Description(BaseModel):
     )
     job_title: str = Field(..., description="Job title")
     job_link: str = Field(..., description="Link of job application")
-    team: str = Field(
-        ...,
-        description="Name of the team within the company. Team name should be null if it's not known.",
+    team: Optional[str] = Field(
+        None,
+        description="Name of the team within the company. Leave null if not known.",
     )
     job_summary: str = Field(
         ..., description="Brief summary of the job, not exceeding 100 words"
     )
-    salary: str = Field(
-        ...,
-        description="Salary amount or range. Salary should be null if it's not known.",
+    salary: Optional[str] = Field(
+        None,
+        description="Salary amount or range. Leave null if not known.",
     )
     duties: List[str] = Field(
         ...,

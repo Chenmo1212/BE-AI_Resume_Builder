@@ -37,3 +37,5 @@ messages:
       - Verify that summary is reflective of my <Resume> and not the <Job Posting>. Update if necessary.
       - Verify that all <Criteria> are met, and update if necessary.
       - Provide the answer to the <Instruction> with prefix <Final Answer>.
+  - role: human
+    content: "Output your final answer as JSON only, following this schema:\n{format_instructions}"

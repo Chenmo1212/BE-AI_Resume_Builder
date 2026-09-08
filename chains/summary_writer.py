@@ -19,6 +19,8 @@ def build_summary_writer_chain(llm: BaseChatModel) -> Runnable:
         A LangChain Runnable expecting keys:
         company, job_summary, degrees, projects, experiences, skills
     """
-    prompt = load_prompt("summary_writer")
     parser = PydanticOutputParser(pydantic_object=Resume_Summarizer_Output)
+    prompt = load_prompt("summary_writer").partial(
+        format_instructions=parser.get_format_instructions()
+    )
     return prompt | llm | parser

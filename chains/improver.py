@@ -20,6 +20,8 @@ def build_improver_chain(llm: BaseChatModel) -> Runnable:
         duties, qualifications, technical_skills, non_technical_skills,
         summary, experiences, projects, education, skills
     """
-    prompt = load_prompt("improver")
     parser = PydanticOutputParser(pydantic_object=Resume_Improver_Output)
+    prompt = load_prompt("improver").partial(
+        format_instructions=parser.get_format_instructions()
+    )
     return prompt | llm | parser
