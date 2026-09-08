@@ -247,25 +247,29 @@ def run_tasks():
     """
     data: {
     "resume": resume_json,
-    "job_list": [{job1}, {job2}]
+    "job_list": [{job1}, {job2}],
+    "ai_config": {"model": "gpt-4o", "temperature": 0.7, "sections": ["experience", "projects", "skills", "summary"]}
     }
     """
     try:
         data = request.get_json()
         if 'resume_id' not in data and 'resume' not in data:
-            return jsonify({"error": str('Neither resume_id nor resume have been provided.')}), 400
+            return jsonify({"error": "Neither resume_id nor resume have been provided."}), 400
         task_list = data.get("task_list", [])
         if not task_list:
-            return jsonify({"error": str('Task_list has not been provided or task_list is empty.')}), 400
+            return jsonify({"error": "Task_list has not been provided or task_list is empty."}), 400
         resume_manager = ResumeManager()
         if 'resume_id' not in data:
             if not isinstance(data['resume'], dict):
-                return jsonify({"error": str('Type of resume is not dict.')}), 400
+                return jsonify({"error": "Type of resume is not dict."}), 400
             resume_id = resume_manager.create(data['resume'])
         else:
             resume_id = data['resume_id']
 
-        task_ids = process_task_list(task_list, resume_id)
+        # Extract optional AI configuration from request
+        ai_config = data.get("ai_config") or {}
+
+        task_ids = process_task_list(task_list, resume_id, ai_config=ai_config)
 
         return jsonify({"message": "Task created successfully", "task_ids": task_ids}), 201
     except Exception as e:
@@ -313,19 +317,18 @@ def check_tasks_status():
         return jsonify({"error": "Internal server error"}), 500
 
 
-def process_batch(job_ids, task_ids, resume_id, update_part):
-    print("job_ids:", job_ids)
-    print("task_ids:", task_ids)
+def process_batch(job_ids, task_ids, resume_id, update_part, ai_config: dict = None):
+    logger.info("job_ids: %s", job_ids)
+    logger.info("task_ids: %s", task_ids)
     task_manager = TaskManager()
     for job_id, task_id in zip(job_ids, task_ids):
         task_manager.update(task_id, {
             'status': 1,  # 0: waiting, 1: pending, 2: done
         })
+        start_task(update_part, resume_id, job_id, task_id, ai_config=ai_config)
 
-        start_task(update_part, resume_id, job_id, task_id)
 
-
-def process_task_list(task_list, resume_id):
+def process_task_list(task_list, resume_id, ai_config: dict = None):
     update_part = 'resume'
     batch_size = 5
     num_tasks = len(task_list)
@@ -357,7 +360,7 @@ def process_task_list(task_list, resume_id):
         task_batch = task_ids[start_idx:end_idx]
 
         # Create a thread to process the batch asynchronously
-        thread = threading.Thread(target=process_batch, args=(job_batch, task_batch, resume_id, update_part))
+        thread = threading.Thread(target=process_batch, args=(job_batch, task_batch, resume_id, update_part, ai_config))
         thread.start()
 
     return task_ids
@@ -377,7 +380,7 @@ def parsing_job(raw_job, job_id):
     })
 
 
-def start_task(update_part, resume_id, job_id, task_id):
+def start_task(update_part, resume_id, job_id, task_id, ai_config: dict = None):
     start_time = time.time()
     resume_manager = ResumeManager()
     resume = resume_manager.get(resume_id)
@@ -386,7 +389,7 @@ def start_task(update_part, resume_id, job_id, task_id):
     task_manager = TaskManager()
 
     try:
-        ai_resume = Pipeline()
+        ai_resume = Pipeline(ai_config=ai_config)
         ai_resume.set_job_text(job)
         ai_resume.set_raw_resume(resume)
 

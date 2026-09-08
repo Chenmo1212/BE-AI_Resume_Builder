@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 class Pipeline:
-    def __init__(self, root_path="my_applications", openai_model_name="gpt-3.5-turbo"):
+    def __init__(self, root_path="my_applications", openai_model_name="gpt-3.5-turbo", ai_config: dict = None):
         self.root_path: str = root_path
         self.raw_job: str = ""
         self.raw_resume: dict = {}
@@ -34,8 +34,13 @@ class Pipeline:
         self.resume_json: str = ""
         self.resume_filename: str = ""
         self.folder: str = ""
+        self.ai_config: dict = ai_config or {}
+        # ai_config.model / ai_config.temperature override the defaults
+        model = self.ai_config.get("model", openai_model_name)
+        temperature = self.ai_config.get("temperature", 0.7)
         self.llm_kwargs = dict(
-            model_name=openai_model_name,
+            model_name=model,
+            temperature=temperature,
             model_kwargs=dict(top_p=0.6, frequency_penalty=0.1),
         )
         self._llm = None  # lazily initialized
@@ -44,6 +49,15 @@ class Pipeline:
         if self._llm is None:
             self._llm = create_llm(**self.llm_kwargs)
         return self._llm
+
+    def _active_sections(self) -> set:
+        """Return the set of sections to process. Defaults to all four if not specified."""
+        default = {"experience", "projects", "skills", "summary"}
+        config = self.ai_config or {}
+        sections = config.get("sections")
+        if not sections:
+            return default
+        return {s.lower() for s in sections} & default
 
     def set_raw_resume(self, raw_resume=None, filename: str = ""):
         if raw_resume is None:
@@ -246,22 +260,34 @@ class Pipeline:
         return skills
 
     async def _run_parallel_steps(self):
-        """Run experience rewriting, project rewriting, and skill extraction in parallel."""
+        """Run experience rewriting, project rewriting, and skill extraction in parallel.
+        Only processes sections listed in ai_config.sections (defaults to all four)."""
         logger.info("=========== Starting parallel steps ===========")
         start_time = time.time()
+        active = self._active_sections()
 
-        exp_tasks = [self._rewrite_experience_async(exp) for exp in self.resume_builder["experiences_raw"]]
-        proj_tasks = [self._rewrite_project_async(proj) for proj in self.resume_builder["projects_raw"]]
+        coros = {}
+        if "experience" in active:
+            coros["experiences"] = asyncio.gather(*[
+                self._rewrite_experience_async(exp)
+                for exp in self.resume_builder["experiences_raw"]
+            ])
+        if "projects" in active:
+            coros["projects"] = asyncio.gather(*[
+                self._rewrite_project_async(proj)
+                for proj in self.resume_builder["projects_raw"]
+            ])
+        if "skills" in active:
+            coros["skills"] = self._extract_skills_async()
 
-        experiences, projects, skills = await asyncio.gather(
-            asyncio.gather(*exp_tasks),
-            asyncio.gather(*proj_tasks),
-            self._extract_skills_async(),
-        )
+        keys = list(coros.keys())
+        results = await asyncio.gather(*coros.values())
+        result_map = dict(zip(keys, results))
 
-        self.resume_builder["experiences"] = list(experiences)
-        self.resume_builder["projects"] = list(projects)
-        self.resume_builder["skills"] = skills
+        # Merge results; fall back to raw data for skipped sections
+        self.resume_builder["experiences"] = list(result_map.get("experiences", self.resume_builder["experiences_raw"]))
+        self.resume_builder["projects"] = list(result_map.get("projects", self.resume_builder["projects_raw"]))
+        self.resume_builder["skills"] = result_map.get("skills", [])
         logger.info(f"Parallel steps done in {time.time() - start_time:.2f}s")
 
     def update_experiences(self):
@@ -294,6 +320,10 @@ class Pipeline:
         logger.info("=========== Start updating summary ===========")
         if not self.resume_builder:
             self.read_resume()
+        if "summary" not in self._active_sections():
+            logger.info("Summary section skipped (not in ai_config.sections)")
+            self.resume_builder["summary"] = self.resume_builder.get("summary_raw", "")
+            return
         chain = build_summary_writer_chain(self._get_llm())
         inputs = format_prompt_inputs_as_strings(
             prompt_inputs=["company", "job_summary", "degrees", "projects", "experiences", "skills"],
