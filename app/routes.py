@@ -1,5 +1,6 @@
 import time
 import queue
+import json as _json
 
 from flask import jsonify, request, Response, stream_with_context
 from app import app
@@ -466,7 +467,6 @@ def task_progress(task_id):
     q = get_or_create_queue(task_id)
 
     def generate():
-        import json as _json
         try:
             while True:
                 try:
