@@ -2,7 +2,7 @@ import time
 
 from flask import jsonify, request
 from app import app
-from app.models import ResumeManager, JobManager, TaskManager
+from app.models import ResumeManager, JobManager, TaskManager, PromptTemplateManager
 import threading
 import logging
 from pipeline import Pipeline
@@ -424,3 +424,55 @@ def start_task(update_part, resume_id, job_id, task_id, ai_config: dict = None):
             'status': -2,
             'error': 'Pipeline failed',
         })
+
+
+# Prompt Template APIs
+
+_VALID_ROLES = {"system", "human", "ai"}
+
+
+def _validate_messages(messages) -> str:
+    """Returns an error string if messages are invalid, else empty string."""
+    if not isinstance(messages, list) or len(messages) == 0:
+        return "messages must be a non-empty list"
+    for i, msg in enumerate(messages):
+        if not isinstance(msg, dict):
+            return f"messages[{i}] must be an object"
+        if msg.get("role") not in _VALID_ROLES:
+            return f"messages[{i}].role must be one of: {', '.join(sorted(_VALID_ROLES))}"
+        if not isinstance(msg.get("content"), str) or not msg["content"].strip():
+            return f"messages[{i}].content must be a non-empty string"
+    return ""
+
+
+@app.route("/prompt-templates", methods=["GET"])
+def list_prompt_templates():
+    try:
+        manager = PromptTemplateManager()
+        templates = manager.list_all()
+        return jsonify(templates), 200
+    except Exception:
+        logger.error("Failed to list prompt templates", exc_info=True)
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@app.route("/prompt-templates/<template_id>", methods=["PUT"])
+def update_prompt_template(template_id):
+    try:
+        data = request.get_json() or {}
+        messages = data.get("messages")
+        error = _validate_messages(messages)
+        if error:
+            return jsonify({"error": error}), 400
+
+        manager = PromptTemplateManager()
+        existing = manager.get(template_id)
+        if not existing:
+            return jsonify({"error": "Prompt template not found"}), 404
+
+        new_version = manager.update_with_history(template_id, messages)
+        logger.info("Prompt template '%s' updated to version %d", existing.get("name"), new_version)
+        return jsonify({"message": "Prompt template updated", "version": new_version}), 200
+    except Exception:
+        logger.error("Failed to update prompt template", exc_info=True)
+        return jsonify({"error": "Internal server error"}), 500

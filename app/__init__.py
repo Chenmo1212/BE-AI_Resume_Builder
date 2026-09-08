@@ -15,4 +15,15 @@ app.debug = True
 
 mongo = PyMongo(app)
 
+# Auto-seed prompt templates from YAML files on first startup
+try:
+    from llm.seed_prompts import seed_prompt_templates
+    seed_prompt_templates()
+except Exception:
+    import logging as _logging
+    _logging.getLogger(__name__).warning(
+        "prompt_templates seed failed (DB may be unavailable) — YAML fallback will be used",
+        exc_info=False,
+    )
+
 from app import routes
