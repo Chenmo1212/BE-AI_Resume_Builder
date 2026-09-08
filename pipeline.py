@@ -35,14 +35,18 @@ class Pipeline:
         self.resume_filename: str = ""
         self.folder: str = ""
         self.ai_config: dict = ai_config or {}
-        # ai_config.model / ai_config.temperature override the defaults
+        # ai_config.provider / ai_config.model / ai_config.temperature override defaults
+        provider = self.ai_config.get("provider")
         model = self.ai_config.get("model", openai_model_name)
         temperature = self.ai_config.get("temperature", 0.7)
         self.llm_kwargs = dict(
+            provider=provider,
             model_name=model,
             temperature=temperature,
             model_kwargs=dict(top_p=0.6, frequency_penalty=0.1),
         )
+        if provider is None:
+            self.llm_kwargs.pop("provider")
         self._llm = None  # lazily initialized
 
     def _get_llm(self):
