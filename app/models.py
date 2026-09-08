@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 from app import mongo
 from datetime import datetime
 from bson import ObjectId
+from typing import Optional
 
 
 def _format_data(data: dict) -> dict:
@@ -89,3 +92,48 @@ class JobManager(BaseManager):
 class TaskManager(BaseManager):
     def __init__(self):
         super().__init__('task')
+
+
+class PromptHistoryManager:
+    """Append-only history log — no soft delete, no BaseManager inheritance."""
+
+    def __init__(self):
+        self.collection = mongo.db["prompt_history"]
+
+    def create_snapshot(self, template_id: str, name: str, version: int, messages: list) -> str:
+        result = self.collection.insert_one({
+            "template_id": template_id,
+            "name": name,
+            "version": version,
+            "messages": messages,
+            "saved_at": datetime.now(),
+        })
+        return str(result.inserted_id)
+
+
+class PromptTemplateManager(BaseManager):
+    def __init__(self):
+        super().__init__("prompt_templates")
+
+    def get_by_name(self, name: str) -> Optional[dict]:
+        doc = self.collection.find_one({"name": name, "is_delete": False})
+        return _format_data(doc)
+
+    def list_all(self) -> list:
+        return self.list()
+
+    def update_with_history(self, template_id: str, new_messages: list) -> int:
+        """Save history snapshot, update messages, bump version. Returns new version."""
+        current = self.get(template_id)
+        if not current:
+            return 0
+        history_mgr = PromptHistoryManager()
+        history_mgr.create_snapshot(
+            template_id=template_id,
+            name=current["name"],
+            version=current["version"],
+            messages=current["messages"],
+        )
+        new_version = current["version"] + 1
+        self.update(template_id, {"messages": new_messages, "version": new_version})
+        return new_version
