@@ -3,7 +3,6 @@ Tests for GET /tasks/<task_id>/progress SSE endpoint.
 """
 import json
 import pytest
-from unittest.mock import patch, MagicMock
 
 from app import app as flask_app
 from app.progress import push_event, cleanup_queue, task_progress_queues
@@ -32,9 +31,9 @@ def test_push_event_creates_queue():
     assert "t1" in task_progress_queues
     q = task_progress_queues["t1"]
     item = q.get_nowait()
-    assert '"step": "parsing_job"' in item
-    assert '"pct": 5' in item
-    assert '"status": "running"' in item
+    raw_json = item.removeprefix("data: ").strip()
+    data = json.loads(raw_json)
+    assert data == {"step": "parsing_job", "pct": 5, "status": "running"}
 
 
 def test_push_event_formats_sse_line():
@@ -87,7 +86,7 @@ def test_sse_endpoint_streams_events_and_closes_on_done(client):
 
 
 def test_sse_endpoint_closes_on_error_event(client):
-    """Endpoint closes after receiving an error event."""
+    """Endpoint closes after receiving an error event and cleans up the queue."""
     task_id = "task-sse-2"
     push_event(task_id, "error", 0, "error")
 
@@ -95,6 +94,7 @@ def test_sse_endpoint_closes_on_error_event(client):
 
     events = _collect_sse_events(response.data)
     assert events[-1]["status"] == "error"
+    assert task_id not in task_progress_queues
 
 
 def test_sse_endpoint_cleanup_queue_after_close(client):
