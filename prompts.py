@@ -98,7 +98,7 @@ class Job_Skills(BaseModel):
 class Resume_Section_Highlight(BaseModel):
     highlight: str = Field(..., description="one highlight")
     relevance: int = Field(
-        ..., description="relevance of the bullet point", enum=[1, 2, 3, 4, 5]
+        ..., description="relevance of the bullet point", json_schema_extra={"enum": [1, 2, 3, 4, 5]}
     )
 
 
@@ -145,7 +145,7 @@ class Resume_Summarizer_Output(BaseModel):
 class Resume_Improvements(BaseModel):
     section: str = Field(
         ...,
-        enum=[
+        json_schema_extra={"enum": [
             "summary",
             "education",
             "experience",
@@ -153,7 +153,7 @@ class Resume_Improvements(BaseModel):
             "skills",
             "spelling and grammar",
             "other",
-        ],
+        ]},
     )
     improvements: List[str] = Field(
         ..., description="itemized list of suggested improvements"
