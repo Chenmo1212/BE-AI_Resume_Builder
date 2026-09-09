@@ -209,6 +209,30 @@ def update_task(task_id):
         return jsonify({"error": "Internal server error"}), 500
 
 
+@app.route('/task/<task_id>/cancel', methods=['POST'])
+def cancel_task(task_id):
+    try:
+        task_manager = TaskManager()
+        task = task_manager.get(task_id)
+        if not task:
+            return jsonify({"error": "Task not found"}), 404
+        if task.get('status') not in (0, 1):
+            return jsonify({"error": "Task is not in a cancellable state"}), 400
+
+        # Set the flag if the thread is running
+        event = _cancel_flags.get(task_id)
+        if event:
+            event.set()
+
+        # Always update DB — covers race where thread finished between check and set
+        task_manager.update(task_id, {'status': -1})
+        return jsonify({"message": "Task cancelled"}), 200
+    except Exception:
+        logger.error("Failed to cancel task %s", task_id, exc_info=True)
+        return jsonify({"error": "Internal server error"}), 500
+
+
+
 @app.route('/tasks', methods=['POST'])
 def get_tasks():
     """
