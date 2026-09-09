@@ -249,8 +249,8 @@ def test_pipeline_default_ai_config_runs_all_sections():
 
 
 def test_pipeline_pops_api_key_from_ai_config_and_passes_to_factory(monkeypatch):
-    """api_key must be removed from ai_config (so it never reaches logs/DB)
-    and passed to create_llm as a kwarg."""
+    """api_key must NOT mutate the caller's dict (Pipeline copies it internally)
+    and must be passed to create_llm as a kwarg."""
     captured = {}
 
     def fake_create_llm(**kwargs):
@@ -269,8 +269,32 @@ def test_pipeline_pops_api_key_from_ai_config_and_passes_to_factory(monkeypatch)
     p = Pipeline(ai_config=ai_config)
     p._get_llm()  # trigger lazy init
 
-    # Key must have been popped from ai_config
-    assert "api_key" not in ai_config
-    assert "base_url" not in ai_config
+    # Caller's dict must NOT be mutated (Pipeline shallow-copies before popping)
+    assert "api_key" in ai_config
+    assert "base_url" in ai_config
     # Key must have been forwarded to create_llm
     assert captured.get("api_key") == "sk-user-key"
+
+
+def test_pipeline_empty_api_key_forwards_none_to_factory(monkeypatch):
+    """Empty string api_key must be normalized to None before forwarding to create_llm."""
+    captured = {}
+
+    def fake_create_llm(**kwargs):
+        captured.update(kwargs)
+        return MagicMock()
+
+    monkeypatch.setattr("pipeline.create_llm", fake_create_llm)
+
+    ai_config = {
+        "provider": "openai",
+        "model": "gpt-4o",
+        "temperature": 0.5,
+        "api_key": "",   # empty string — must become None
+        "base_url": "",
+    }
+    p = Pipeline(ai_config=ai_config)
+    p._get_llm()
+
+    assert captured.get("api_key") is None
+    assert captured.get("base_url") is None

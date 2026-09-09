@@ -93,3 +93,10 @@ def test_create_llm_openai_empty_request_key_falls_back_to_env():
     with patch.dict('os.environ', {'OPENAI_API_KEY': 'sk-env-key'}):
         llm = create_llm(provider="openai", api_key="")
         assert llm.openai_api_key.get_secret_value() == "sk-env-key"
+
+
+def test_create_llm_deepseek_empty_request_key_falls_back_to_env():
+    """Empty string api_key for DeepSeek must fall back to DEEPSEEK_API_KEY env var."""
+    with patch.dict('os.environ', {'DEEPSEEK_API_KEY': 'sk-env-deepseek'}):
+        llm = create_llm(provider="deepseek", api_key="")
+        assert llm.openai_api_key.get_secret_value() == "sk-env-deepseek"

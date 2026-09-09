@@ -35,7 +35,7 @@ class Pipeline:
         self.resume_json: str = ""
         self.resume_filename: str = ""
         self.folder: str = ""
-        self.ai_config: dict = ai_config or {}
+        self.ai_config: dict = dict(ai_config) if ai_config else {}
 
         # Pop sensitive fields immediately so they never appear in logs or DB writes.
         # Treat empty string as "not provided".

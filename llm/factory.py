@@ -37,6 +37,7 @@ def create_llm(provider: str = None, api_key: str = None, base_url: str = None, 
             "model_name",
             os.environ.get("OPENAI_MODEL_NAME", "gpt-3.5-turbo")
         )
+        kwargs.pop("base_url", None)  # base_url is DeepSeek-only; discard for OpenAI
         resolved_key = request_key or os.environ.get("OPENAI_API_KEY")
         return ChatOpenAI(model=model_name, api_key=resolved_key, **kwargs)
 
