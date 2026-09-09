@@ -31,19 +31,27 @@ class Pipeline:
         self.raw_resume: dict = {}
         self.final_resume: dict = {}
         self.parsed_job: dict = {}
-        self.resume_builder: dict = {}  # holds processed resume sections
+        self.resume_builder: dict = {}
         self.resume_json: str = ""
         self.resume_filename: str = ""
         self.folder: str = ""
         self.ai_config: dict = ai_config or {}
-        # ai_config.provider / ai_config.model / ai_config.temperature override defaults
+
+        # Pop sensitive fields immediately so they never appear in logs or DB writes.
+        # Treat empty string as "not provided".
+        _api_key = self.ai_config.pop("api_key", None) or None
+        _base_url = self.ai_config.pop("base_url", None) or None
+
         provider = self.ai_config.get("provider")
         model = self.ai_config.get("model", openai_model_name)
         temperature = self.ai_config.get("temperature", 0.7)
+
         self.llm_kwargs = dict(
             provider=provider,
             model_name=model,
             temperature=temperature,
+            api_key=_api_key,
+            base_url=_base_url,
             model_kwargs=dict(top_p=0.6, frequency_penalty=0.1),
         )
         if provider is None:

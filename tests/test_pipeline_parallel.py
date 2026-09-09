@@ -246,3 +246,31 @@ def test_pipeline_default_ai_config_runs_all_sections():
     assert "experience" in called_rewrites
     assert "projects" in called_rewrites
     assert "skills" in called_rewrites
+
+
+def test_pipeline_pops_api_key_from_ai_config_and_passes_to_factory(monkeypatch):
+    """api_key must be removed from ai_config (so it never reaches logs/DB)
+    and passed to create_llm as a kwarg."""
+    captured = {}
+
+    def fake_create_llm(**kwargs):
+        captured.update(kwargs)
+        return MagicMock()
+
+    monkeypatch.setattr("pipeline.create_llm", fake_create_llm)
+
+    ai_config = {
+        "provider": "openai",
+        "model": "gpt-4o",
+        "temperature": 0.5,
+        "api_key": "sk-user-key",
+        "base_url": "",
+    }
+    p = Pipeline(ai_config=ai_config)
+    p._get_llm()  # trigger lazy init
+
+    # Key must have been popped from ai_config
+    assert "api_key" not in ai_config
+    assert "base_url" not in ai_config
+    # Key must have been forwarded to create_llm
+    assert captured.get("api_key") == "sk-user-key"
