@@ -232,7 +232,6 @@ def cancel_task(task_id):
         return jsonify({"error": "Internal server error"}), 500
 
 
-
 @app.route('/tasks', methods=['POST'])
 def get_tasks():
     """
