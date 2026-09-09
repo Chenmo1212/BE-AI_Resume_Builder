@@ -35,7 +35,7 @@ def create_llm(provider: str = None, api_key: str = None, base_url: str = None, 
     if provider == "openai":
         model_name = kwargs.pop(
             "model_name",
-            os.environ.get("OPENAI_MODEL_NAME", "gpt-3.5-turbo")
+            os.environ.get("OPENAI_MODEL_NAME", "gpt-5.6")
         )
         kwargs.pop("base_url", None)  # base_url is DeepSeek-only; discard for OpenAI
         resolved_key = request_key or os.environ.get("OPENAI_API_KEY")
@@ -47,7 +47,7 @@ def create_llm(provider: str = None, api_key: str = None, base_url: str = None, 
             raise EnvironmentError("DEEPSEEK_API_KEY environment variable is required for deepseek provider")
         model_name = kwargs.pop(
             "model_name",
-            os.environ.get("DEEPSEEK_MODEL_NAME", "deepseek-chat")
+            os.environ.get("DEEPSEEK_MODEL_NAME", "deepseek-v4-flash")
         )
         resolved_base_url = request_base_url or os.environ.get(
             "DEEPSEEK_BASE_URL", "https://api.deepseek.com"

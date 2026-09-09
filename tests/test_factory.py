@@ -27,19 +27,19 @@ def test_create_llm_deepseek_success():
     with patch.dict('os.environ', {'DEEPSEEK_API_KEY': 'sk-deepseek-test'}):
         llm = create_llm(provider="deepseek")
         assert isinstance(llm, ChatOpenAI)
-        assert llm.model_name == "deepseek-chat"
+        assert llm.model_name == "deepseek-v4-flash"
         assert str(llm.openai_api_base).rstrip("/") == "https://api.deepseek.com"
 
 
 def test_create_llm_deepseek_custom_model_and_url():
     with patch.dict('os.environ', {
         'DEEPSEEK_API_KEY': 'sk-deepseek-test',
-        'DEEPSEEK_MODEL_NAME': 'deepseek-reasoner',
+        'DEEPSEEK_MODEL_NAME': 'deepseek-v4-pro',
         'DEEPSEEK_BASE_URL': 'https://custom.deepseek.api'
     }):
         llm = create_llm(provider="deepseek")
         assert isinstance(llm, ChatOpenAI)
-        assert llm.model_name == "deepseek-reasoner"
+        assert llm.model_name == "deepseek-v4-pro"
         assert str(llm.openai_api_base).rstrip("/") == "https://custom.deepseek.api"
 
 
@@ -56,7 +56,7 @@ def test_create_llm_uses_llm_provider_env_var():
     }):
         llm = create_llm()
         assert isinstance(llm, ChatOpenAI)
-        assert llm.model_name == "deepseek-chat"
+        assert llm.model_name == "deepseek-v4-flash"
 
 
 def test_create_llm_unknown_provider_raises():
