@@ -84,3 +84,18 @@ class TestCancelEndpoint:
             MockTM.return_value.update.assert_called_once_with('task_waiting', {'status': -1})
 
         assert res.status_code == 200
+
+
+class TestProcessBatch:
+    def test_skips_cancelled_task(self):
+        """process_batch should skip a task that was already cancelled (status=-1)."""
+        with patch('app.routes.TaskManager') as MockTM, \
+             patch('app.routes.start_task') as mock_start:
+            mock_task_manager = MockTM.return_value
+            mock_task_manager.get.return_value = {'status': -1, 'id': 'task_cancelled'}
+            
+            from app.routes import process_batch
+            process_batch(['job_1'], ['task_cancelled'], 'resume_1', 'resume')
+            
+            mock_start.assert_not_called()
+            mock_task_manager.update.assert_not_called()

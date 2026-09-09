@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 # --- Task cancellation support ---
 _cancel_flags: dict = {}  # task_id -> threading.Event
+_cancel_flags_lock = threading.Lock()
 
 
 class CancelledError(Exception):
@@ -21,7 +22,8 @@ def _check_cancel(event, task_id, task_manager):
     """Raise CancelledError and reset task to -1 if the cancel flag is set."""
     if event and event.is_set():
         task_manager.update(task_id, {'status': -1})
-        _cancel_flags.pop(task_id, None)
+        with _cancel_flags_lock:
+            _cancel_flags.pop(task_id, None)
         raise CancelledError(f"Task {task_id} was cancelled")
 
 
@@ -220,7 +222,8 @@ def cancel_task(task_id):
             return jsonify({"error": "Task is not in a cancellable state"}), 400
 
         # Set the flag if the thread is running
-        event = _cancel_flags.get(task_id)
+        with _cancel_flags_lock:
+            event = _cancel_flags.get(task_id)
         if event:
             event.set()
 
@@ -360,11 +363,16 @@ def process_batch(job_ids, task_ids, resume_id, update_part, ai_config: dict = N
     logger.info("task_ids: %s", task_ids)
     task_manager = TaskManager()
     for job_id, task_id in zip(job_ids, task_ids):
+        task = task_manager.get(task_id)
+        if task and task.get('status') == -1:
+            logger.info("Task %s already cancelled, skipping", task_id)
+            continue
         task_manager.update(task_id, {
             'status': 1,  # 0: waiting, 1: pending, 2: done
         })
         cancel_event = threading.Event()
-        _cancel_flags[task_id] = cancel_event
+        with _cancel_flags_lock:
+            _cancel_flags[task_id] = cancel_event
         start_task(update_part, resume_id, job_id, task_id, ai_config=ai_config, cancel_event=cancel_event)
 
 
@@ -483,11 +491,13 @@ def start_task(update_part, resume_id, job_id, task_id, ai_config: dict = None, 
     except CancelledError:
         logger.info("Task %s was cancelled", task_id)
         # Status already reset to -1 by _check_cancel; just clean up the flag
-        _cancel_flags.pop(task_id, None)
+        with _cancel_flags_lock:
+            _cancel_flags.pop(task_id, None)
 
     except Exception:
         logger.error("Pipeline failed for task %s", task_id, exc_info=True)
-        _cancel_flags.pop(task_id, None)
+        with _cancel_flags_lock:
+            _cancel_flags.pop(task_id, None)
         task_manager.update(task_id, {
             'status': -2,
             'error': 'Pipeline failed',
