@@ -1,14 +1,11 @@
 import time
-import queue
-import json as _json
 
-from flask import jsonify, request, Response, stream_with_context
+from flask import jsonify, request
 from app import app
 from app.models import ResumeManager, JobManager, TaskManager, PromptTemplateManager
 import threading
 import logging
 from pipeline import Pipeline
-from app.progress import push_event, get_or_create_queue, cleanup_queue
 
 logger = logging.getLogger(__name__)
 
@@ -392,45 +389,32 @@ def start_task(update_part, resume_id, job_id, task_id, ai_config: dict = None):
     task_manager = TaskManager()
 
     try:
-        push_event(task_id, "parsing_job", 5, "running")
         ai_resume = Pipeline(ai_config=ai_config)
         ai_resume.set_job_text(job["raw"])
         ai_resume.set_raw_resume(resume)
         ai_resume.read_and_parse_job()
-        push_event(task_id, "parsing_job", 20, "running")
 
         ai_resume.read_resume()
-        push_event(task_id, "reading_resume", 25, "running")
 
         if update_part == "resume":
-            push_event(task_id, "parallel_steps", 30, "running")
             import asyncio as _asyncio
             _asyncio.run(ai_resume._run_parallel_steps())
-            push_event(task_id, "parallel_steps", 70, "running")
 
-            push_event(task_id, "summary", 75, "running")
             ai_resume.update_summary()
-            push_event(task_id, "summary", 85, "running")
 
-            push_event(task_id, "improving", 88, "running")
             ai_resume.improve_final_resume()
-            push_event(task_id, "improving", 90, "running")
 
-            push_event(task_id, "finalizing", 92, "running")
             ai_resume.generate_resume_yaml()
             ai_resume.generate_json()
             resume = ai_resume.final_resume
-            push_event(task_id, "finalizing", 95, "running")
 
         elif update_part == "experiences":
             ai_resume.update_experiences()
             resume = {**resume, "work": ai_resume.resume_builder["experiences"]}
-            push_event(task_id, "finalizing", 90, "running")
 
         elif update_part == "summary":
             ai_resume.update_summary()
             resume = {**resume, "basics": {**resume["basics"], "summary": ai_resume.resume_builder["summary"]}}
-            push_event(task_id, "finalizing", 90, "running")
 
         job_manager.update(job_id, {**ai_resume.parsed_job, 'status': 2})
 
@@ -446,7 +430,6 @@ def start_task(update_part, resume_id, job_id, task_id, ai_config: dict = None):
             "time_used": time.time() - start_time,
             "new_resume_id": new_resume_id,
         })
-        push_event(task_id, "done", 100, "done")
 
     except Exception:
         logger.error("Pipeline failed for task %s", task_id, exc_info=True)
@@ -454,46 +437,6 @@ def start_task(update_part, resume_id, job_id, task_id, ai_config: dict = None):
             'status': -2,
             'error': 'Pipeline failed',
         })
-        push_event(task_id, "error", 0, "error")
-
-
-@app.route('/tasks/<task_id>/progress', methods=['GET'])
-def task_progress(task_id):
-    """SSE endpoint — streams progress events for a single task.
-
-    Events: data: {"step": str, "pct": int, "status": "running"|"done"|"error"}
-    Connection closes when status == "done" or "error".
-    """
-    q = get_or_create_queue(task_id)
-
-    def generate():
-        try:
-            while True:
-                try:
-                    # Block up to 30 s; send a keep-alive comment if nothing arrives
-                    event = q.get(timeout=30)
-                except queue.Empty:
-                    yield ": keep-alive\n\n"
-                    continue
-                yield event
-                # Parse status to decide whether to close
-                try:
-                    data = _json.loads(event.removeprefix("data: ").strip())
-                    if data.get("status") in ("done", "error"):
-                        break
-                except Exception:
-                    pass
-        finally:
-            cleanup_queue(task_id)
-
-    return Response(
-        stream_with_context(generate()),
-        content_type='text/event-stream',
-        headers={
-            'Cache-Control': 'no-cache',
-            'X-Accel-Buffering': 'no',
-        },
-    )
 
 
 # Prompt Template APIs

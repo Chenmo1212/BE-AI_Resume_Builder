@@ -106,8 +106,7 @@ def test_start_task_passes_raw_job_text_to_pipeline():
     with patch('app.routes.ResumeManager', return_value=mock_resume_manager), \
          patch('app.routes.JobManager', return_value=mock_job_manager), \
          patch('app.routes.TaskManager', return_value=mock_task_manager), \
-         patch('app.routes.Pipeline') as mock_pipeline_cls, \
-         patch('app.routes.push_event'):
+         patch('app.routes.Pipeline') as mock_pipeline_cls:
         pipeline = mock_pipeline_cls.return_value
         pipeline.parsed_job = {}
         pipeline.resume_builder = {"summary": "Updated summary"}
