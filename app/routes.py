@@ -9,6 +9,21 @@ from pipeline import Pipeline
 
 logger = logging.getLogger(__name__)
 
+# --- Task cancellation support ---
+_cancel_flags: dict = {}  # task_id -> threading.Event
+
+
+class CancelledError(Exception):
+    pass
+
+
+def _check_cancel(event, task_id, task_manager):
+    """Raise CancelledError and reset task to -1 if the cancel flag is set."""
+    if event and event.is_set():
+        task_manager.update(task_id, {'status': -1})
+        _cancel_flags.pop(task_id, None)
+        raise CancelledError(f"Task {task_id} was cancelled")
+
 
 @app.route('/', methods=['GET'])
 def index():
@@ -325,7 +340,9 @@ def process_batch(job_ids, task_ids, resume_id, update_part, ai_config: dict = N
         task_manager.update(task_id, {
             'status': 1,  # 0: waiting, 1: pending, 2: done
         })
-        start_task(update_part, resume_id, job_id, task_id, ai_config=ai_config)
+        cancel_event = threading.Event()
+        _cancel_flags[task_id] = cancel_event
+        start_task(update_part, resume_id, job_id, task_id, ai_config=ai_config, cancel_event=cancel_event)
 
 
 def process_task_list(task_list, resume_id, ai_config: dict = None):
@@ -380,7 +397,7 @@ def parsing_job(raw_job, job_id):
     })
 
 
-def start_task(update_part, resume_id, job_id, task_id, ai_config: dict = None):
+def start_task(update_part, resume_id, job_id, task_id, ai_config: dict = None, cancel_event=None):
     start_time = time.time()
     resume_manager = ResumeManager()
     resume = resume_manager.get(resume_id)
@@ -392,16 +409,23 @@ def start_task(update_part, resume_id, job_id, task_id, ai_config: dict = None):
         ai_resume = Pipeline(ai_config=ai_config)
         ai_resume.set_job_text(job["raw"])
         ai_resume.set_raw_resume(resume)
+
+        _check_cancel(cancel_event, task_id, task_manager)
         ai_resume.read_and_parse_job()
 
+        _check_cancel(cancel_event, task_id, task_manager)
         ai_resume.read_resume()
 
         if update_part == "resume":
             import asyncio as _asyncio
+
+            _check_cancel(cancel_event, task_id, task_manager)
             _asyncio.run(ai_resume._run_parallel_steps())
 
+            _check_cancel(cancel_event, task_id, task_manager)
             ai_resume.update_summary()
 
+            _check_cancel(cancel_event, task_id, task_manager)
             ai_resume.improve_final_resume()
 
             ai_resume.generate_resume_yaml()
@@ -409,10 +433,12 @@ def start_task(update_part, resume_id, job_id, task_id, ai_config: dict = None):
             resume = ai_resume.final_resume
 
         elif update_part == "experiences":
+            _check_cancel(cancel_event, task_id, task_manager)
             ai_resume.update_experiences()
             resume = {**resume, "work": ai_resume.resume_builder["experiences"]}
 
         elif update_part == "summary":
+            _check_cancel(cancel_event, task_id, task_manager)
             ai_resume.update_summary()
             resume = {**resume, "basics": {**resume["basics"], "summary": ai_resume.resume_builder["summary"]}}
 
@@ -431,8 +457,14 @@ def start_task(update_part, resume_id, job_id, task_id, ai_config: dict = None):
             "new_resume_id": new_resume_id,
         })
 
+    except CancelledError:
+        logger.info("Task %s was cancelled", task_id)
+        # Status already reset to -1 by _check_cancel; just clean up the flag
+        _cancel_flags.pop(task_id, None)
+
     except Exception:
         logger.error("Pipeline failed for task %s", task_id, exc_info=True)
+        _cancel_flags.pop(task_id, None)
         task_manager.update(task_id, {
             'status': -2,
             'error': 'Pipeline failed',
