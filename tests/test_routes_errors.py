@@ -31,3 +31,26 @@ def test_insert_job_error_is_generic(client):
         assert response.status_code == 500
         assert data["error"] == "Internal server error"
         assert "secret detail" not in data["error"]
+
+
+def test_run_tasks_missing_resume_returns_400(client):
+    """Missing resume field must return 400."""
+    response = client.post('/tasks/run', json={"task_list": [{"id": "t1", "description": "job"}]})
+    data = json.loads(response.data)
+    assert response.status_code == 400
+    assert data["error"] == "resume dict is required"
+
+
+def test_run_tasks_resume_not_dict_returns_400(client):
+    """resume field that is not a dict must return 400."""
+    response = client.post('/tasks/run', json={"resume": "not-a-dict", "task_list": [{"id": "t1", "description": "job"}]})
+    data = json.loads(response.data)
+    assert response.status_code == 400
+    assert data["error"] == "resume dict is required"
+
+
+def test_run_tasks_empty_task_list_returns_400(client):
+    """Empty task_list must return 400."""
+    response = client.post('/tasks/run', json={"resume": {"basics": {}}, "task_list": []})
+    data = json.loads(response.data)
+    assert response.status_code == 400

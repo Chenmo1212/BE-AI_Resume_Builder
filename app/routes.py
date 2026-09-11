@@ -32,6 +32,7 @@ def index():
     return "hello world"
 
 
+# DEPRECATED: client-side storage handles this
 # Resume APIs
 @app.route('/resume', methods=['POST'])
 def insert_resume():
@@ -84,6 +85,7 @@ def list_resumes():
     return jsonify(resumes)
 
 
+# DEPRECATED: client-side storage handles this
 # Job APIs
 @app.route('/job', methods=['POST'])
 def insert_job():
@@ -288,24 +290,19 @@ def run_tasks():
     """
     data: {
     "resume": resume_json,
-    "job_list": [{job1}, {job2}],
+    "task_list": [{task1}, {task2}],
     "ai_config": {"model": "gpt-4o", "temperature": 0.7, "sections": ["experience", "projects", "skills", "summary"]}
     }
     """
     try:
         data = request.get_json()
-        if 'resume_id' not in data and 'resume' not in data:
-            return jsonify({"error": "Neither resume_id nor resume have been provided."}), 400
+        if 'resume' not in data or not isinstance(data['resume'], dict):
+            return jsonify({"error": "resume dict is required"}), 400
         task_list = data.get("task_list", [])
         if not task_list:
             return jsonify({"error": "Task_list has not been provided or task_list is empty."}), 400
         resume_manager = ResumeManager()
-        if 'resume_id' not in data:
-            if not isinstance(data['resume'], dict):
-                return jsonify({"error": "Type of resume is not dict."}), 400
-            resume_id = resume_manager.create(data['resume'])
-        else:
-            resume_id = data['resume_id']
+        resume_id = resume_manager.create(data['resume'])
 
         # Extract optional AI configuration from request
         ai_config = data.get("ai_config") or {}
