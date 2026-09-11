@@ -219,7 +219,8 @@ def cancel_task(task_id):
         task_manager = TaskManager()
         task = task_manager.get(task_id)
         if not task:
-            return jsonify({"error": "Task not found"}), 404
+            # Task not in memory (e.g. server restarted) — treat as already cancelled
+            return jsonify({"message": "Task already cancelled or not found"}), 200
         if task.get('status') not in (0, 1):
             return jsonify({"error": "Task is not in a cancellable state"}), 400
 
@@ -334,11 +335,9 @@ def check_tasks_status():
         tasks = []
         for task_id in task_ids:
             if not task_id:
-                tasks.append(None)
                 continue
             task = task_manager.get(task_id)
             if not task:
-                tasks.append(None)
                 continue
 
             resume = {}
@@ -388,14 +387,23 @@ def process_task_list(task_list, resume_id, ai_config: dict = None):
             job_id = job_manager.create({'raw': task['description']})
         else:
             job_id = task['jobId']
+            # Job lives in client-side Dexie; register it in the backend store if not already present
+            if not job_manager.get(job_id):
+                job_manager.create({'id': job_id, 'raw': task.get('description', '')})
         job_ids.append(job_id)
         task_id = task['id']
-        task_manager.update(task_id, {
+        task_data = {
+            'id': task_id,
             'job_id': job_id,
             'raw_resume_id': resume_id,
             'status': 0,  # 0: waiting, 1: pending, 2: done
             'content': task.get('content') or update_part
-        })
+        }
+        # Tasks are created client-side; ensure they exist in the backend store
+        if task_manager.get(task_id):
+            task_manager.update(task_id, task_data)
+        else:
+            task_manager.create(task_data)
         task_ids.append(task_id)
 
     for i in range(num_batches):
