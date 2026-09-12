@@ -2,14 +2,14 @@ import pytest
 from unittest.mock import MagicMock, patch
 from llm.seed_prompts import seed_prompt_templates
 
-YAML_NAMES = ["section_highlighter", "skills_matcher", "summary_writer", "improver"]
+YAML_NAMES = ["section_highlighter", "skills_matcher", "summary_writer", "improver", "reviewer"]
 
 
 def _make_mock_collection(count=0):
     """Return a mock pymongo collection where count_documents returns `count`."""
     col = MagicMock()
     col.count_documents.return_value = count
-    col.insert_many.return_value = MagicMock(inserted_ids=[MagicMock()] * 4)
+    col.insert_many.return_value = MagicMock(inserted_ids=[MagicMock()] * 5)
     return col
 
 
@@ -26,7 +26,7 @@ def test_seed_inserts_four_docs_when_collection_empty(mock_client_cls):
 
     count = seed_prompt_templates("mongodb://localhost/test")
 
-    assert count == 4
+    assert count == 5
     col.insert_many.assert_called_once()
     inserted = col.insert_many.call_args[0][0]
     names = [doc["name"] for doc in inserted]
@@ -72,3 +72,16 @@ def test_seed_uses_env_mongo_uri_as_default(mock_client_cls, monkeypatch):
     seed_prompt_templates()  # no explicit uri
 
     mock_client_cls.assert_called_once_with("mongodb://envhost/mydb")
+
+
+@patch("llm.seed_prompts.MongoClient")
+def test_seed_includes_reviewer_with_is_show_false(mock_client_cls):
+    col = _make_mock_collection(count=0)
+    mock_client_cls.return_value = _make_mock_client(col)
+
+    seed_prompt_templates("mongodb://localhost/test")
+
+    inserted = col.insert_many.call_args[0][0]
+    reviewer_docs = [doc for doc in inserted if doc["name"] == "reviewer"]
+    assert len(reviewer_docs) == 1
+    assert reviewer_docs[0]["is_show"] is False

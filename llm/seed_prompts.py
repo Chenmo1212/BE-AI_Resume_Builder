@@ -17,14 +17,19 @@ _DESCRIPTIONS = {
     "skills_matcher": "Extracts skills from resume matching job requirements",
     "summary_writer": "Writes a professional summary tailored to the job",
     "improver": "Critiques the resume and suggests improvements",
+    "reviewer": "Reviews resume content against quality standards and returns structured feedback",
 }
 
-_YAML_NAMES = ["section_highlighter", "skills_matcher", "summary_writer", "improver"]
+_YAML_NAMES = ["section_highlighter", "skills_matcher", "summary_writer", "improver", "reviewer"]
+
+_IS_SHOW = {
+    "reviewer": False,
+}
 
 
 def seed_prompt_templates(mongo_uri: Optional[str] = None) -> int:
     """
-    Insert the four prompt YAML files into prompt_templates collection if empty.
+    Insert the five prompt YAML files into prompt_templates collection if empty.
 
     Args:
         mongo_uri: MongoDB connection URI. Defaults to MONGO_URI env var.
@@ -57,7 +62,7 @@ def seed_prompt_templates(mongo_uri: Optional[str] = None) -> int:
                 "update_time": now,
                 "delete_time": None,
                 "is_delete": False,
-                "is_show": True,
+                "is_show": _IS_SHOW.get(name, True),
             })
 
         collection.insert_many(docs)
