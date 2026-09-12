@@ -179,3 +179,77 @@ def test_review_and_retry_appends_revision_message_on_retry():
     # First call has no revision key; second call has revision_instruction key
     assert "revision_instruction" not in captured_inputs[0]
     assert captured_inputs[1].get("revision_instruction") == "Shorten to under 25 words."
+
+
+from unittest.mock import patch
+
+
+def test_rewrite_experience_uses_review_and_retry():
+    """_rewrite_experience_async must call _review_and_retry, not writer directly."""
+    from pipeline import Pipeline
+
+    p = Pipeline.__new__(Pipeline)
+    p.ai_config = {}
+    p.parsed_job = {
+        "duties": ["Build APIs"],
+        "qualifications": ["5 years Python"],
+        "technical_skills": ["Python"],
+        "non_technical_skills": ["Communication"],
+    }
+
+    exp_raw = {"name": "Acme", "unedited": True, "summary": "Led API development team."}
+
+    expected_result = MagicMock()
+    expected_result.final_answer = [MagicMock(highlight="Led API dev.", relevance=5)]
+
+    review_and_retry_mock = AsyncMock(return_value=expected_result)
+
+    with patch.object(p, '_review_and_retry', review_and_retry_mock), \
+         patch.object(p, '_get_llm', return_value=MagicMock()):
+        result = asyncio.run(p._rewrite_experience_async(exp_raw))
+
+    review_and_retry_mock.assert_called_once()
+    call_kwargs = review_and_retry_mock.call_args
+    assert call_kwargs.kwargs.get("section_type") == "highlight" or \
+           (len(call_kwargs.args) >= 5 and call_kwargs.args[4] == "highlight")
+
+
+def test_update_summary_uses_review_and_retry():
+    """update_summary must call _review_and_retry for the summary section."""
+    from pipeline import Pipeline
+
+    p = Pipeline.__new__(Pipeline)
+    p.ai_config = {}
+    p.parsed_job = {
+        "company": "Acme Corp",
+        "job_summary": "Build software",
+        "technical_skills": ["Python"],
+        "non_technical_skills": ["Communication"],
+    }
+    p.resume_builder = {
+        "summary": "",
+        "summary_raw": "Experienced engineer.",
+        "experiences": [],
+        "projects": [],
+        "skills": [],
+        "education": [],
+    }
+
+    expected_result = MagicMock()
+    expected_result.final_answer = "Experienced software engineer with 5 years building scalable APIs."
+
+    review_and_retry_mock = AsyncMock(return_value=expected_result)
+
+    with patch.object(p, '_review_and_retry', review_and_retry_mock), \
+         patch.object(p, '_get_llm', return_value=MagicMock()), \
+         patch.object(p, '_get_degrees', return_value=[]), \
+         patch.object(p, '_format_projects_for_prompt', return_value=[]), \
+         patch.object(p, '_format_experiences_for_prompt', return_value=[]), \
+         patch.object(p, '_format_skills_for_prompt', return_value=[]):
+        p.update_summary()
+
+    review_and_retry_mock.assert_called_once()
+    call_kwargs = review_and_retry_mock.call_args
+    assert call_kwargs.kwargs.get("section_type") == "summary" or \
+           (len(call_kwargs.args) >= 5 and call_kwargs.args[4] == "summary")
+    assert p.resume_builder["summary"] == expected_result.final_answer

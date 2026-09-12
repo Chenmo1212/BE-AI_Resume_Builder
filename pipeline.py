@@ -231,7 +231,8 @@ class Pipeline:
         exp = dict(exp_raw)
         experience_unedited = exp.get("summary") if exp.get("unedited", False) else ""
         if experience_unedited:
-            chain = build_section_highlighter_chain(self._get_llm())
+            writer_chain = build_section_highlighter_chain(self._get_llm())
+            reviewer_chain = build_reviewer_chain(self._get_llm())
             inputs = {
                 **format_prompt_inputs_as_strings(
                     prompt_inputs=["duties", "qualifications", "technical_skills", "non_technical_skills"],
@@ -239,7 +240,13 @@ class Pipeline:
                 ),
                 "section": experience_unedited,
             }
-            result = await chain.ainvoke(inputs)
+            result = await self._review_and_retry(
+                writer_chain=writer_chain,
+                reviewer_chain=reviewer_chain,
+                inputs=inputs,
+                extract_content=lambda r: r.final_answer[0].highlight if r.final_answer else "",
+                section_type="highlight",
+            )
             highlights = sorted(result.final_answer, key=lambda d: d.relevance * -1)
             exp["highlights"] = [h.highlight for h in highlights]
         return exp
@@ -249,7 +256,8 @@ class Pipeline:
         proj_unedited = proj.get("summary") if proj.get("unedited", False) else ""
         if proj_unedited:
             desc_combined = proj_unedited + " using " + proj.get("skills", "")
-            chain = build_section_highlighter_chain(self._get_llm())
+            writer_chain = build_section_highlighter_chain(self._get_llm())
+            reviewer_chain = build_reviewer_chain(self._get_llm())
             inputs = {
                 **format_prompt_inputs_as_strings(
                     prompt_inputs=["duties", "qualifications", "technical_skills", "non_technical_skills"],
@@ -257,7 +265,13 @@ class Pipeline:
                 ),
                 "section": desc_combined,
             }
-            result = await chain.ainvoke(inputs)
+            result = await self._review_and_retry(
+                writer_chain=writer_chain,
+                reviewer_chain=reviewer_chain,
+                inputs=inputs,
+                extract_content=lambda r: r.final_answer[0].highlight if r.final_answer else "",
+                section_type="highlight",
+            )
             highlights = sorted(result.final_answer, key=lambda d: d.relevance * -1)
             proj["highlights"] = [h.highlight for h in highlights]
         return proj
@@ -406,7 +420,8 @@ class Pipeline:
             logger.info("Summary section skipped (not in ai_config.sections)")
             self.resume_builder["summary"] = self.resume_builder.get("summary_raw", "")
             return
-        chain = build_summary_writer_chain(self._get_llm())
+        writer_chain = build_summary_writer_chain(self._get_llm())
+        reviewer_chain = build_reviewer_chain(self._get_llm())
         inputs = format_prompt_inputs_as_strings(
             prompt_inputs=["company", "job_summary", "degrees", "projects", "experiences", "skills"],
             **self.parsed_job,
@@ -415,7 +430,13 @@ class Pipeline:
             experiences=self._format_experiences_for_prompt(self.resume_builder["experiences"]),
             skills=self._format_skills_for_prompt(self.resume_builder["skills"]),
         )
-        result = chain.invoke(inputs)
+        result = asyncio.run(self._review_and_retry(
+            writer_chain=writer_chain,
+            reviewer_chain=reviewer_chain,
+            inputs=inputs,
+            extract_content=lambda r: r.final_answer,
+            section_type="summary",
+        ))
         self.resume_builder["summary"] = result.final_answer
 
     def improve_final_resume(self):
