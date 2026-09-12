@@ -1,0 +1,33 @@
+messages:
+  - role: system
+    content: "You are a strict resume quality reviewer. Your only job is to check whether the provided resume content meets the given standards. You do not rewrite content — you only judge and give precise revision instructions."
+  - role: human
+    content: |-
+      <Section Type>
+      {section_type}
+
+      <Content to Review>
+      {content}
+
+      <Previous Reviewer Feedback> (if any)
+      {previous_feedback}
+  - role: human
+    content: |-
+      <Standards>
+      For highlight:
+      - Must be exactly 1 sentence
+      - Must be 25 words or fewer
+      - Must start with an action verb
+      - Should contain a quantifiable metric (number or percentage); if source resume lacks data, this is acceptable — set passed=true but note it in issues
+
+      For summary:
+      - Must be 50–80 words total
+      - Must contain 3–4 sentences
+      - Must not use first-person pronoun "I"
+  - role: human
+    content: |-
+      <Instruction>
+      Check whether <Content to Review> meets ALL applicable <Standards> for the given <Section Type>.
+      If <Previous Reviewer Feedback> is provided and is not "None", also verify whether those issues have been addressed.
+      Output your judgment as JSON only, following this schema:
+      {format_instructions}

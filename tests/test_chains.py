@@ -59,3 +59,29 @@ def test_section_highlighter_chain_invokes_with_correct_keys():
     # Should not raise — chain accepts these keys
     result = chain.invoke(inputs)
     assert result is not None
+
+
+def test_build_reviewer_chain_returns_runnable():
+    from chains.reviewer import build_reviewer_chain
+    mock_llm = make_mock_llm()
+    chain = build_reviewer_chain(mock_llm)
+    assert chain is not None
+
+
+def test_reviewer_chain_invokes_with_correct_keys():
+    """Reviewer chain must accept section_type, content, previous_feedback."""
+    try:
+        from langchain_core.language_models.fake_chat_models import FakeListChatModel
+    except ImportError:
+        from langchain_core.language_models.fake import FakeListChatModel
+    from chains.reviewer import build_reviewer_chain
+    fake_response = '{"passed": true, "issues": [], "revision_instruction": ""}'
+    llm = FakeListChatModel(responses=[fake_response])
+    chain = build_reviewer_chain(llm)
+    result = chain.invoke({
+        "section_type": "highlight",
+        "content": "Led backend development reducing latency by 40%.",
+        "previous_feedback": "None",
+    })
+    assert result is not None
+    assert result.passed is True
