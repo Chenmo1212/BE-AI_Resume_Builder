@@ -220,11 +220,17 @@ class Pipeline:
             {"category": "Technical", "skills": []},
             {"category": "Non-technical", "skills": []},
         ]
-        for s in skills_raw:
-            if s != "practices":
-                skills[0]["skills"] += [item["name"] for item in skills_raw[s]]
-            else:
-                skills[1]["skills"] += [item["name"] for item in skills_raw[s]]
+        # New flat format: {"technical": [...], "nonTechnical": [...]}
+        if "technical" in skills_raw or "nonTechnical" in skills_raw:
+            skills[0]["skills"] = [item["name"] for item in skills_raw.get("technical", [])]
+            skills[1]["skills"] = [item["name"] for item in skills_raw.get("nonTechnical", [])]
+        else:
+            # Legacy format: multiple named categories; "practices" is non-technical
+            for s in skills_raw:
+                if s != "practices":
+                    skills[0]["skills"] += [item["name"] for item in skills_raw[s]]
+                else:
+                    skills[1]["skills"] += [item["name"] for item in skills_raw[s]]
         return skills
 
     @staticmethod
