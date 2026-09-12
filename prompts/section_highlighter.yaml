@@ -16,24 +16,21 @@ messages:
     content: "<Instruction> Identify the relevant portions from the <Master Resume> that match the <Job Posting>, and rephrase these relevant portions into highlights"
   - role: human
     content: |-
-      <Criteria> 
-      - Based on <Master Resume> to extract 3 - 4 highlights.
-      - Each highlight must be based on what is mentioned in the <Master Resume>.
-      - In each highlight, include how that experience in the <Master Resume> demonstrates an ability to perform duties mentioned in the <Job Posting>.
-      - In each highlight, try to include action verbs, give tangible and concrete examples, and include success metrics when available.
-      - Each highlight must be exactly 1 sentence and 25 words or fewer.
-      - Make sure add more hard number in each highlight.
-      - Must avoid the overuse of specific action verbs.
-      - Grammar, spellings, and sentence structure must be correct.
+      <Criteria>
+      - Extract 3 - 4 highlights based strictly on what is mentioned in the <Master Resume>.
+      - Each highlight must be exactly 1 sentence and 25 words or fewer. This is a hard limit — do not exceed it.
+      - Each highlight must start with a strong action verb (e.g. Built, Reduced, Led, Designed, Shipped).
+      - Each highlight must describe a concrete accomplishment from the <Master Resume> that is relevant to the <Job Posting>. Do NOT explain how it relates — just state the accomplishment.
+      - Include hard numbers or percentages where available in the <Master Resume>.
+      - Do not add explanatory commentary, job-alignment reasoning, or meta-sentences.
+      - Grammar, spelling, and sentence structure must be correct.
   - role: human
     content: |-
       <Steps>
-      - Create a <Plan> for following the <Instruction> while meeting all the <Criteria>.
-      - What <Additional Steps> are needed to follow the <Plan>?
-      - Follow all steps one by one and show your <Work>.
-      - Verify that highlights are reflective of the <Master Resume> and not the <Job Posting>. Update if necessary.
-      - Verify that all <Criteria> are met, and update if necessary.
-      - Provide the answer to the <Instruction> with prefix <Final Answer>.
+      - Read the <Master Resume> and identify 3-4 accomplishments relevant to the <Job Posting>.
+      - For each accomplishment, write exactly 1 sentence of 25 words or fewer starting with an action verb.
+      - Check: is each highlight exactly 1 sentence? Is it 25 words or fewer? If not, rewrite it until it is.
+      - Provide the answer with prefix <Final Answer>.
   - role: human
     content: "{revision_instruction}"
   - role: human
