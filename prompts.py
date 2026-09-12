@@ -167,3 +167,22 @@ class Resume_Improver_Output(BaseModel):
     final_answer: List[Resume_Improvements] = Field(
         ..., description="<Final Answer> in the correct format"
     )
+
+
+class ReviewerOutput(BaseModel):
+    """Quality review result for a single resume section."""
+
+    passed: bool = Field(
+        ..., description="True if the content meets all applicable resume standards"
+    )
+    issues: List[str] = Field(
+        ...,
+        description="List of specific issues found. Empty list if passed=True.",
+    )
+    revision_instruction: str = Field(
+        ...,
+        description=(
+            "Precise instruction for the writer to fix all issues. "
+            "Empty string if passed=True."
+        ),
+    )
