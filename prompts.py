@@ -186,3 +186,12 @@ class ReviewerOutput(BaseModel):
             "Empty string if passed=True."
         ),
     )
+    corrected_content: str = Field(
+        ...,
+        description=(
+            "The corrected version of the content that meets all standards. "
+            "For highlight: each bullet on its own line, each ≤25 words and exactly 1 sentence. "
+            "For summary: the corrected paragraph text. "
+            "Empty string if passed=True."
+        ),
+    )

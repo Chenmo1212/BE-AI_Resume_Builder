@@ -227,6 +227,16 @@ class Pipeline:
                 skills[1]["skills"] += [item["name"] for item in skills_raw[s]]
         return skills
 
+    @staticmethod
+    def _apply_highlight_correction(result, corrected_content: str):
+        """Replace result.final_answer highlights with corrected bullets from reviewer."""
+        lines = [line.strip() for line in corrected_content.splitlines() if line.strip()]
+        from prompts import Resume_Section_Highlight
+        result.final_answer = [
+            Resume_Section_Highlight(highlight=line, relevance=5) for line in lines
+        ]
+        return result
+
     async def _rewrite_experience_async(self, exp_raw: dict) -> dict:
         exp = dict(exp_raw)
         experience_unedited = exp.get("summary") if exp.get("unedited", False) else ""
@@ -241,11 +251,12 @@ class Pipeline:
                 "section": experience_unedited,
                 "revision_instruction": "",
             }
-            result = await self._review_and_retry(
+            result = await self._review_and_correct(
                 writer_chain=writer_chain,
                 reviewer_chain=reviewer_chain,
                 inputs=inputs,
                 extract_content=lambda r: "\n".join(h.highlight for h in r.final_answer) if r.final_answer else "",
+                apply_correction=self._apply_highlight_correction,
                 section_type="highlight",
             )
             highlights = sorted(result.final_answer, key=lambda d: d.relevance * -1)
@@ -267,11 +278,12 @@ class Pipeline:
                 "section": desc_combined,
                 "revision_instruction": "",
             }
-            result = await self._review_and_retry(
+            result = await self._review_and_correct(
                 writer_chain=writer_chain,
                 reviewer_chain=reviewer_chain,
                 inputs=inputs,
                 extract_content=lambda r: "\n".join(h.highlight for h in r.final_answer) if r.final_answer else "",
+                apply_correction=self._apply_highlight_correction,
                 section_type="highlight",
             )
             highlights = sorted(result.final_answer, key=lambda d: d.relevance * -1)
@@ -301,67 +313,61 @@ class Pipeline:
             skills.append({"category": "Non-technical", "skills": extracted.non_technical_skills})
         return skills
 
-    async def _review_and_retry(
+    async def _review_and_correct(
         self,
         writer_chain,
         reviewer_chain,
         inputs: dict,
         extract_content,
+        apply_correction,
         section_type: str,
-        max_retries: int = 2,
     ):
         """
-        Run writer → reviewer → retry loop.
+        Run writer → reviewer → apply correction.
+
+        Writer is called once. If reviewer fails, corrected_content from the
+        reviewer is applied directly via apply_correction rather than retrying
+        the writer (which ignores revision instructions).
 
         Args:
             writer_chain: Async-invokable LangChain chain producing resume content.
             reviewer_chain: Async-invokable reviewer chain returning ReviewerOutput.
-            inputs: Initial input dict for the writer chain.
-            extract_content: Callable that extracts the reviewable text from the writer result.
+            inputs: Input dict for the writer chain.
+            extract_content: Callable extracting the reviewable text from writer result.
+            apply_correction: Callable(result, corrected_content) -> result that patches
+                              the writer result in-place with the corrected text.
             section_type: "highlight" or "summary" — passed to the reviewer.
-            max_retries: Maximum number of retry attempts after the first failure (default 2).
 
         Returns:
-            The last writer result, regardless of final review status.
+            The writer result, potentially patched with reviewer corrections.
         """
-        current_inputs = dict(inputs)
-        previous_feedback = "None"
+        result = await writer_chain.ainvoke(inputs)
+        content = extract_content(result)
 
-        for attempt in range(max_retries + 1):
-            result = await writer_chain.ainvoke(current_inputs)
-            content = extract_content(result)
+        review: ReviewerOutput = await reviewer_chain.ainvoke({
+            "section_type": section_type,
+            "content": content,
+            "previous_feedback": "None",
+        })
 
-            review: ReviewerOutput = await reviewer_chain.ainvoke({
-                "section_type": section_type,
-                "content": content,
-                "previous_feedback": previous_feedback,
-            })
+        if review.passed:
+            return result
 
-            if review.passed:
-                return result
-
-            if attempt == max_retries:
-                logger.warning(
-                    "Reviewer still failing after %d retries for section_type='%s'. "
-                    "Using last result. Issues: %s",
-                    max_retries,
-                    section_type,
-                    review.issues,
-                )
-                return result
-
-            # Prepare retry: set revision instruction for the next attempt
-            previous_feedback = "; ".join(review.issues)
-            revision_content = (
-                "<Revision Required>\n"
-                "Your previous output did not meet resume standards. "
-                "Please fix the following:\n"
-                f"- {review.revision_instruction}"
+        if review.corrected_content:
+            logger.info(
+                "Reviewer corrected section_type='%s'. Issues: %s",
+                section_type,
+                review.issues,
             )
-            current_inputs = dict(inputs)
-            current_inputs["revision_instruction"] = revision_content
+            return apply_correction(result, review.corrected_content)
 
-        return result  # unreachable but satisfies type checkers
+        logger.warning(
+            "Reviewer failed for section_type='%s' but provided no corrected_content. "
+            "Using original writer result. Issues: %s",
+            section_type,
+            review.issues,
+        )
+        return result
 
     async def _run_parallel_steps(self):
         """Run experience rewriting, project rewriting, and skill extraction in parallel.
@@ -441,11 +447,17 @@ class Pipeline:
             ),
             "revision_instruction": "",
         }
-        result = asyncio.run(self._review_and_retry(
+
+        def apply_summary_correction(result, corrected_content: str):
+            result.final_answer = corrected_content.strip()
+            return result
+
+        result = asyncio.run(self._review_and_correct(
             writer_chain=writer_chain,
             reviewer_chain=reviewer_chain,
             inputs=inputs,
             extract_content=lambda r: r.final_answer,
+            apply_correction=apply_summary_correction,
             section_type="summary",
         ))
         self.resume_builder["summary"] = result.final_answer

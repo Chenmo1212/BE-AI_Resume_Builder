@@ -75,7 +75,7 @@ def test_reviewer_chain_invokes_with_correct_keys():
     except ImportError:
         from langchain_core.language_models.fake import FakeListChatModel
     from chains.reviewer import build_reviewer_chain
-    fake_response = '{"passed": true, "issues": [], "revision_instruction": ""}'
+    fake_response = '{"passed": true, "issues": [], "revision_instruction": "", "corrected_content": ""}'
     llm = FakeListChatModel(responses=[fake_response])
     chain = build_reviewer_chain(llm)
     result = chain.invoke({

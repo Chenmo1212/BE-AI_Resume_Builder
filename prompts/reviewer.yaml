@@ -28,6 +28,13 @@ messages:
     content: |-
       <Instruction>
       Check whether <Content to Review> meets ALL applicable <Standards> for the given <Section Type>.
-      If <Previous Reviewer Feedback> is provided and is not "None", also verify whether those issues have been addressed.
+
+      If passed=False, you MUST provide a corrected version in corrected_content:
+      - For highlight: rewrite each bullet as exactly 1 sentence of 25 words or fewer starting with an action verb. Output each corrected bullet on its own line.
+      - For summary: rewrite the summary as 3-4 sentences totaling 50-80 words with no "I".
+
+      The corrected_content must be ready to use as-is — not instructions, not explanations, just the corrected text.
+      If passed=True, set corrected_content to empty string "".
+
       Output your judgment as JSON only, following this schema:
       {format_instructions}
