@@ -12,12 +12,14 @@ from chains.section_highlighter import build_section_highlighter_chain
 from chains.skills_matcher import build_skills_matcher_chain
 from chains.summary_writer import build_summary_writer_chain
 from chains.improver import build_improver_chain
+from chains.reviewer import build_reviewer_chain
 from prompts import (
     Job_Description,
     Job_Skills,
     format_list_as_string,
     format_prompt_inputs_as_strings,
     datediff_years,
+    ReviewerOutput,
 )
 from yaml_to_json import yaml_to_json
 
@@ -282,6 +284,62 @@ class Pipeline:
         if extracted.non_technical_skills:
             skills.append({"category": "Non-technical", "skills": extracted.non_technical_skills})
         return skills
+
+    async def _review_and_retry(
+        self,
+        writer_chain,
+        reviewer_chain,
+        inputs: dict,
+        extract_content,
+        section_type: str,
+        max_retries: int = 2,
+    ):
+        """
+        Run writer → reviewer → retry loop.
+
+        Args:
+            writer_chain: Async-invokable LangChain chain producing resume content.
+            reviewer_chain: Async-invokable reviewer chain returning ReviewerOutput.
+            inputs: Initial input dict for the writer chain.
+            extract_content: Callable that extracts the reviewable text from the writer result.
+            section_type: "highlight" or "summary" — passed to the reviewer.
+            max_retries: Maximum number of retry attempts after the first failure (default 2).
+
+        Returns:
+            The last writer result, regardless of final review status.
+        """
+        current_inputs = dict(inputs)
+        previous_feedback = "None"
+
+        for attempt in range(max_retries + 1):
+            result = await writer_chain.ainvoke(current_inputs)
+            content = extract_content(result)
+
+            review: ReviewerOutput = await reviewer_chain.ainvoke({
+                "section_type": section_type,
+                "content": content,
+                "previous_feedback": previous_feedback,
+            })
+
+            if review.passed:
+                return result
+
+            if attempt == max_retries:
+                logger.warning(
+                    "Reviewer still failing after %d retries for section_type='%s'. "
+                    "Using last result. Issues: %s",
+                    max_retries,
+                    section_type,
+                    review.issues,
+                )
+                return result
+
+            # Prepare retry: append revision instruction to inputs
+            previous_feedback = "; ".join(review.issues)
+            current_inputs = dict(inputs)
+            current_inputs["revision_instruction"] = review.revision_instruction
+
+        return result  # unreachable but satisfies type checkers
 
     async def _run_parallel_steps(self):
         """Run experience rewriting, project rewriting, and skill extraction in parallel.
