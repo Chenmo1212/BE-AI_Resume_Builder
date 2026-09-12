@@ -25,8 +25,8 @@ def test_load_prompt_unknown_name_raises():
 
 def test_load_prompt_message_count():
     prompt = load_prompt("section_highlighter")
-    # system + 5 human = 6 messages
-    assert len(prompt.messages) == 6
+    # system + 6 human (includes revision_instruction placeholder) = 7 messages
+    assert len(prompt.messages) == 7
 
 
 def test_skills_matcher_has_expected_variables():

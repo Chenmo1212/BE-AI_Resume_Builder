@@ -38,4 +38,6 @@ messages:
       - Verify that all <Criteria> are met, and update if necessary.
       - Provide the answer to the <Instruction> with prefix <Final Answer>.
   - role: human
+    content: "{revision_instruction}"
+  - role: human
     content: "Output your final answer as JSON only, following this schema:\n{format_instructions}"

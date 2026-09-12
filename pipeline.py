@@ -239,12 +239,13 @@ class Pipeline:
                     **self.parsed_job,
                 ),
                 "section": experience_unedited,
+                "revision_instruction": "",
             }
             result = await self._review_and_retry(
                 writer_chain=writer_chain,
                 reviewer_chain=reviewer_chain,
                 inputs=inputs,
-                extract_content=lambda r: r.final_answer[0].highlight if r.final_answer else "",
+                extract_content=lambda r: "\n".join(h.highlight for h in r.final_answer) if r.final_answer else "",
                 section_type="highlight",
             )
             highlights = sorted(result.final_answer, key=lambda d: d.relevance * -1)
@@ -264,12 +265,13 @@ class Pipeline:
                     **self.parsed_job,
                 ),
                 "section": desc_combined,
+                "revision_instruction": "",
             }
             result = await self._review_and_retry(
                 writer_chain=writer_chain,
                 reviewer_chain=reviewer_chain,
                 inputs=inputs,
-                extract_content=lambda r: r.final_answer[0].highlight if r.final_answer else "",
+                extract_content=lambda r: "\n".join(h.highlight for h in r.final_answer) if r.final_answer else "",
                 section_type="highlight",
             )
             highlights = sorted(result.final_answer, key=lambda d: d.relevance * -1)
@@ -348,10 +350,16 @@ class Pipeline:
                 )
                 return result
 
-            # Prepare retry: append revision instruction to inputs
+            # Prepare retry: set revision instruction for the next attempt
             previous_feedback = "; ".join(review.issues)
+            revision_content = (
+                "<Revision Required>\n"
+                "Your previous output did not meet resume standards. "
+                "Please fix the following:\n"
+                f"- {review.revision_instruction}"
+            )
             current_inputs = dict(inputs)
-            current_inputs["revision_instruction"] = review.revision_instruction
+            current_inputs["revision_instruction"] = revision_content
 
         return result  # unreachable but satisfies type checkers
 
@@ -422,14 +430,17 @@ class Pipeline:
             return
         writer_chain = build_summary_writer_chain(self._get_llm())
         reviewer_chain = build_reviewer_chain(self._get_llm())
-        inputs = format_prompt_inputs_as_strings(
-            prompt_inputs=["company", "job_summary", "degrees", "projects", "experiences", "skills"],
-            **self.parsed_job,
-            degrees=self._get_degrees(),
-            projects=self._format_projects_for_prompt(self.resume_builder["projects"]),
-            experiences=self._format_experiences_for_prompt(self.resume_builder["experiences"]),
-            skills=self._format_skills_for_prompt(self.resume_builder["skills"]),
-        )
+        inputs = {
+            **format_prompt_inputs_as_strings(
+                prompt_inputs=["company", "job_summary", "degrees", "projects", "experiences", "skills"],
+                **self.parsed_job,
+                degrees=self._get_degrees(),
+                projects=self._format_projects_for_prompt(self.resume_builder["projects"]),
+                experiences=self._format_experiences_for_prompt(self.resume_builder["experiences"]),
+                skills=self._format_skills_for_prompt(self.resume_builder["skills"]),
+            ),
+            "revision_instruction": "",
+        }
         result = asyncio.run(self._review_and_retry(
             writer_chain=writer_chain,
             reviewer_chain=reviewer_chain,

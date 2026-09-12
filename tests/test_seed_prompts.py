@@ -20,7 +20,7 @@ def _make_mock_client(collection):
 
 
 @patch("llm.seed_prompts.MongoClient")
-def test_seed_inserts_four_docs_when_collection_empty(mock_client_cls):
+def test_seed_inserts_five_docs_when_collection_empty(mock_client_cls):
     col = _make_mock_collection(count=0)
     mock_client_cls.return_value = _make_mock_client(col)
 

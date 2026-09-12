@@ -176,9 +176,11 @@ def test_review_and_retry_appends_revision_message_on_retry():
         section_type="highlight",
     ))
 
-    # First call has no revision key; second call has revision_instruction key
+    # First call has no revision key; second call has revision_instruction with full envelope
     assert "revision_instruction" not in captured_inputs[0]
-    assert captured_inputs[1].get("revision_instruction") == "Shorten to under 25 words."
+    revision_value = captured_inputs[1].get("revision_instruction", "")
+    assert "Shorten to under 25 words." in revision_value
+    assert "<Revision Required>" in revision_value
 
 
 from unittest.mock import patch
