@@ -17,14 +17,12 @@ _DESCRIPTIONS = {
     "skills_matcher": "Extracts skills from resume matching job requirements",
     "summary_writer": "Writes a professional summary tailored to the job",
     "improver": "Critiques the resume and suggests improvements",
-    "reviewer": "Reviews resume content against quality standards and returns structured feedback",
+    "reviewer": "Internal quality reviewer — not user-editable",
 }
 
 _YAML_NAMES = ["section_highlighter", "skills_matcher", "summary_writer", "improver", "reviewer"]
 
-_IS_SHOW = {
-    "reviewer": False,
-}
+_HIDDEN_PROMPTS = {"reviewer"}
 
 
 def seed_prompt_templates(mongo_uri: Optional[str] = None) -> int:
@@ -62,7 +60,7 @@ def seed_prompt_templates(mongo_uri: Optional[str] = None) -> int:
                 "update_time": now,
                 "delete_time": None,
                 "is_delete": False,
-                "is_show": _IS_SHOW.get(name, True),
+                "is_show": name not in _HIDDEN_PROMPTS,
             })
 
         collection.insert_many(docs)

@@ -85,3 +85,8 @@ def test_seed_includes_reviewer_with_is_show_false(mock_client_cls):
     reviewer_docs = [doc for doc in inserted if doc["name"] == "reviewer"]
     assert len(reviewer_docs) == 1
     assert reviewer_docs[0]["is_show"] is False
+
+    reviewer_doc = next(d for d in inserted if d["name"] == "reviewer")
+    non_reviewer_doc = next(d for d in inserted if d["name"] == "section_highlighter")
+    assert reviewer_doc["is_show"] is False
+    assert non_reviewer_doc["is_show"] is True
