@@ -1,4 +1,6 @@
 import time
+import json
+import os
 
 from flask import jsonify, request
 from app import app
@@ -7,7 +9,40 @@ import threading
 import logging
 from pipeline import Pipeline
 
-logger = logging.getLogger(__name__)
+# Directory for persisting completed resume data across process restarts.
+_RESUME_CACHE_DIR = os.path.join(os.path.dirname(__file__), '..', '.resume_cache')
+os.makedirs(_RESUME_CACHE_DIR, exist_ok=True)
+
+
+def _cache_path(task_id: str) -> str:
+    return os.path.join(_RESUME_CACHE_DIR, f"{task_id}.json")
+
+
+def _write_resume_cache(task_id: str, task_record: dict, resume: dict):
+    """Persist task metadata + resume to disk so it survives process restarts."""
+    try:
+        payload = {
+            'task': {k: v for k, v in task_record.items()
+                     if k not in ('create_time', 'update_time')},
+            'resume': resume,
+        }
+        with open(_cache_path(task_id), 'w', encoding='utf-8') as f:
+            json.dump(payload, f)
+    except Exception:
+        logger.warning("Failed to write resume cache for task %s", task_id, exc_info=True)
+
+
+def _read_resume_cache(task_id: str) -> dict | None:
+    """Read persisted resume cache for a task. Returns None if not found."""
+    try:
+        path = _cache_path(task_id)
+        if not os.path.exists(path):
+            return None
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        logger.warning("Failed to read resume cache for task %s", task_id, exc_info=True)
+        return None
 
 # --- Task cancellation support ---
 _cancel_flags: dict = {}  # task_id -> threading.Event
@@ -338,6 +373,13 @@ def check_tasks_status():
                 continue
             task = task_manager.get(task_id)
             if not task:
+                # In-memory store lost data (process restart) — try disk cache.
+                cached = _read_resume_cache(task_id)
+                if cached:
+                    tasks.append({
+                        **cached['task'],
+                        'resume': cached['resume'],
+                    })
                 continue
 
             resume = {}
@@ -489,6 +531,13 @@ def start_task(update_part, resume_id, job_id, task_id, ai_config: dict = None, 
             "time_used": time.time() - start_time,
             "new_resume_id": new_resume_id,
         })
+
+        # Persist to disk so resume survives process restarts.
+        _write_resume_cache(task_id, {
+            'id': task_id,
+            'status': 2,
+            'new_resume_id': new_resume_id,
+        }, resume)
 
     except CancelledError:
         logger.info("Task %s was cancelled", task_id)
