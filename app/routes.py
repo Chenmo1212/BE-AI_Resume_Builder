@@ -8,7 +8,9 @@ from app import app
 from app.models import ResumeManager, JobManager, TaskManager, PromptTemplateManager
 import threading
 import logging
-from openai import APIStatusError
+import httpx
+from openai import APIStatusError, APITimeoutError
+from langchain_core.exceptions import OutputParserException
 from pipeline import Pipeline
 
 logger = logging.getLogger(__name__)
@@ -69,6 +71,11 @@ def _check_cancel(event, task_id, task_manager):
 @app.route('/', methods=['GET'])
 def index():
     return "hello world"
+
+
+@app.route('/health', methods=['GET'])
+def health():
+    return jsonify({"status": "ok"}), 200
 
 
 # DEPRECATED: client-side storage handles this
@@ -550,8 +557,12 @@ def start_task(update_part, resume_id, job_id, task_id, ai_config: dict = None, 
             _cancel_flags.pop(task_id, None)
 
     except APIStatusError as e:
-        if e.status_code == 402:
+        if e.status_code == 401:
+            error_msg = 'Invalid API key or unauthorized access'
+        elif e.status_code == 402:
             error_msg = 'Insufficient API balance'
+        elif e.status_code == 429:
+            error_msg = 'API rate limit exceeded. Please try again later'
         else:
             error_msg = f'API error {e.status_code}'
         logger.error("Pipeline failed for task %s: %s", task_id, error_msg, exc_info=True)
@@ -562,14 +573,26 @@ def start_task(update_part, resume_id, job_id, task_id, ai_config: dict = None, 
             'error': error_msg,
         })
 
-    except Exception:
-        logger.error("Pipeline failed for task %s", task_id, exc_info=True)
+    except (APITimeoutError, httpx.TimeoutException, TimeoutError) as e:
+        error_msg = 'AI request timed out'
+        logger.error("Pipeline failed for task %s: %s (%s)", task_id, error_msg, e, exc_info=True)
         with _cancel_flags_lock:
             _cancel_flags.pop(task_id, None)
-        task_manager.update(task_id, {
-            'status': -2,
-            'error': 'Pipeline failed',
-        })
+        task_manager.update(task_id, {'status': -2, 'error': error_msg})
+
+    except (OutputParserException, ValueError) as e:
+        error_msg = 'Failed to parse AI output into resume format'
+        logger.error("Pipeline failed for task %s: %s (%s)", task_id, error_msg, e, exc_info=True)
+        with _cancel_flags_lock:
+            _cancel_flags.pop(task_id, None)
+        task_manager.update(task_id, {'status': -2, 'error': error_msg})
+
+    except Exception as e:
+        error_msg = 'Task processing failed'
+        logger.error("Pipeline failed for task %s: %s (%s)", task_id, error_msg, e, exc_info=True)
+        with _cancel_flags_lock:
+            _cancel_flags.pop(task_id, None)
+        task_manager.update(task_id, {'status': -2, 'error': error_msg})
 
 
 # Prompt Template APIs
