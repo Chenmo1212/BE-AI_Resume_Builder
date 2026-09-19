@@ -52,11 +52,13 @@ class TestCancelEndpoint:
         with flask_app.test_client() as client:
             yield client
 
-    def test_cancel_returns_404_for_missing_task(self, client):
+    def test_cancel_returns_200_for_missing_task(self, client):
+        """A task not in memory (e.g. server restarted, or client-side ID not yet
+        registered) is treated as already cancelled — returns 200, not 404."""
         with patch('app.routes.TaskManager') as MockTM:
             MockTM.return_value.get.return_value = None
             res = client.post('/task/nonexistent/cancel')
-        assert res.status_code == 404
+        assert res.status_code == 200
 
     def test_cancel_returns_400_when_task_not_cancellable(self, client):
         with patch('app.routes.TaskManager') as MockTM:
