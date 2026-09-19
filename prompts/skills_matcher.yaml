@@ -35,6 +35,5 @@ messages:
       - Filter to only those relevant to the <Job Posting>.
       - Merge equivalent skill names into canonical representations (e.g. React.js / React / ReactJS → React).
       - Verify that every skill in the final list is explicitly supported by the <Resume> — remove any skill that was inferred from the Job Posting rather than the Resume.
-      - Provide the answer with prefix <Final Answer>.
   - role: human
     content: "Output your final answer as JSON only, following this schema:\n{format_instructions}"

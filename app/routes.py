@@ -8,7 +8,10 @@ from app import app
 from app.models import ResumeManager, JobManager, TaskManager, PromptTemplateManager
 import threading
 import logging
+from openai import APIStatusError
 from pipeline import Pipeline
+
+logger = logging.getLogger(__name__)
 
 # Directory for persisting completed resume data across process restarts.
 _RESUME_CACHE_DIR = os.path.join(os.path.dirname(__file__), '..', '.resume_cache')
@@ -545,6 +548,19 @@ def start_task(update_part, resume_id, job_id, task_id, ai_config: dict = None, 
         # Status already reset to -1 by _check_cancel; just clean up the flag
         with _cancel_flags_lock:
             _cancel_flags.pop(task_id, None)
+
+    except APIStatusError as e:
+        if e.status_code == 402:
+            error_msg = 'Insufficient API balance'
+        else:
+            error_msg = f'API error {e.status_code}'
+        logger.error("Pipeline failed for task %s: %s", task_id, error_msg, exc_info=True)
+        with _cancel_flags_lock:
+            _cancel_flags.pop(task_id, None)
+        task_manager.update(task_id, {
+            'status': -2,
+            'error': error_msg,
+        })
 
     except Exception:
         logger.error("Pipeline failed for task %s", task_id, exc_info=True)

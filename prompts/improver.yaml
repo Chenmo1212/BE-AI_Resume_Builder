@@ -42,4 +42,5 @@ messages:
       - Map each key Job Posting requirement to its corresponding Resume evidence. Assess whether the evidence is strong, weak, or absent.
       - Classify all findings into the five categories defined in the <Criteria>.
       - Verify that every recommendation is grounded in actual Resume content — remove any recommendation that assumes experience the candidate does not have.
-      - Provide the answer to the <Instruction> with prefix <Final Answer>.
+  - role: human
+    content: "Output your final answer as JSON only, following this schema:\n{format_instructions}"

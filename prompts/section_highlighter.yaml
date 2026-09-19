@@ -81,7 +81,6 @@ messages:
       - For each selected accomplishment, write exactly 1 sentence starting with a strong action verb.
       - Keep it concise. If a highlight exceeds 35 words, tighten it by removing generic or redundant wording first — never remove impact, technical context, ownership, or scope to hit a word count.
       - Check: is each highlight exactly 1 sentence? Does it describe an accomplishment (not merely a responsibility)? Does it maximize information density? If it exceeds 35 words, has it been tightened? If not, rewrite it.
-      - Provide the answer with prefix <Final Answer>.
   - role: human
     content: "{revision_instruction}"
   - role: human

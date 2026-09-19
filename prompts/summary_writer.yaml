@@ -37,7 +37,6 @@ messages:
       - Write a professional summary that leads with that positioning. Include a concrete achievement or differentiator only if it fits naturally and strengthens the positioning.
       - Count the words. The summary must be between 50 and 80 words — rewrite until it is.
       - Check: does it avoid "I"? Does it avoid generic self-evaluative filler? Does it avoid duplicating what the Highlights already say? Does it establish a clear professional identity?
-      - Provide the answer with prefix <Final Answer>.
   - role: human
     content: "{revision_instruction}"
   - role: human
