@@ -43,27 +43,16 @@ def yaml_to_json(yaml):
 
     # Basics
 
-    # Skills
-    web_skill = {"languages": [], "frameworks": [], "libraries": [],
-                 "databases": [], "technologies": [], "practices": [], "tools": []}
-    raw_technical = []
-    raw_non_technical = []
-    for category in raw_json['skills']:
-        if 'Technical' == category['category']:
-            raw_technical = category['skills']
-        elif 'Non-technical' == category['category']:
-            raw_non_technical = category['skills']
-    for skill in {}.fromkeys(raw_technical).keys():
-        web_skill['technologies'].append({
-            "name": skill,
-            "level": 3
-        })
-    for skill in {}.fromkeys(raw_non_technical).keys():
-        web_skill['practices'].append({
-            "name": skill,
-            "level": 3
-        })
-    web_json['skills'] = web_skill
+    # Skills — pass through the frontend flat format produced by Pipeline._skills_to_frontend_format.
+    # Deduplication already happened upstream; we keep dict.fromkeys here only as a safety net
+    # for JSON files that were generated outside the pipeline (e.g. hand-edited resumes).
+    raw_skills = raw_json.get('skills', {})
+    raw_technical = [item["name"] for item in raw_skills.get("technical", []) if isinstance(item, dict)]
+    raw_non_technical = [item["name"] for item in raw_skills.get("nonTechnical", []) if isinstance(item, dict)]
+    web_json['skills'] = {
+        "technical": [{"name": skill} for skill in dict.fromkeys(raw_technical)],
+        "nonTechnical": [{"name": skill} for skill in dict.fromkeys(raw_non_technical)],
+    }
 
 
     # Work Experiences

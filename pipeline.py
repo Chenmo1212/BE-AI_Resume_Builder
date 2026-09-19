@@ -183,6 +183,10 @@ class Pipeline:
                 curr += format_list_as_string(exp["highlights"], list_sep="\n  - ")
                 curr += "\n"
                 result.append(curr)
+            elif "summary" in exp:
+                curr += str(exp["summary"])
+                curr += "\n"
+                result.append(curr)
         return result
 
     def _get_cumulative_time_from_titles(self, titles) -> int:
@@ -198,8 +202,16 @@ class Pipeline:
         result = []
         for proj in projects:
             curr = ""
-            if "desc" in proj:
+            if "highlights" in proj:
+                curr += format_list_as_string(proj["highlights"], list_sep="\n  - ")
+                curr += "\n"
+                result.append(curr)
+            elif "desc" in proj:
                 curr += format_list_as_string(proj["desc"], list_sep="\n  - ")
+                curr += "\n"
+                result.append(curr)
+            elif "summary" in proj:
+                curr += str(proj["summary"])
                 curr += "\n"
                 result.append(curr)
         return result
@@ -264,6 +276,8 @@ class Pipeline:
                 extract_content=lambda r: "\n".join(h.highlight for h in r.final_answer) if r.final_answer else "",
                 apply_correction=self._apply_highlight_correction,
                 section_type="highlight",
+                source_evidence=experience_unedited,
+                job_posting=self.parsed_job.get("duties", ""),
             )
             highlights = sorted(result.final_answer, key=lambda d: d.relevance * -1)
             exp["highlights"] = [h.highlight for h in highlights]
@@ -291,6 +305,8 @@ class Pipeline:
                 extract_content=lambda r: "\n".join(h.highlight for h in r.final_answer) if r.final_answer else "",
                 apply_correction=self._apply_highlight_correction,
                 section_type="highlight",
+                source_evidence=desc_combined,
+                job_posting=self.parsed_job.get("duties", ""),
             )
             highlights = sorted(result.final_answer, key=lambda d: d.relevance * -1)
             proj["highlights"] = [h.highlight for h in highlights]
@@ -298,11 +314,12 @@ class Pipeline:
 
     async def _extract_skills_async(self) -> list:
         chain = build_skills_matcher_chain(self._get_llm())
+        # Use processed data (with highlights) when available, fall back to raw
         experiences_formatted = self._format_experiences_for_prompt(
-            self.resume_builder["experiences_raw"]
+            self.resume_builder.get("experiences") or self.resume_builder["experiences_raw"]
         )
         projects_formatted = self._format_projects_for_prompt(
-            self.resume_builder["projects_raw"]
+            self.resume_builder.get("projects") or self.resume_builder["projects_raw"]
         )
         inputs = format_prompt_inputs_as_strings(
             prompt_inputs=["technical_skills", "non_technical_skills", "projects", "experiences"],
@@ -327,6 +344,8 @@ class Pipeline:
         extract_content,
         apply_correction,
         section_type: str,
+        source_evidence: str = "",
+        job_posting: str = "",
     ):
         """
         Run writer → reviewer → apply correction.
@@ -343,6 +362,8 @@ class Pipeline:
             apply_correction: Callable(result, corrected_content) -> result that patches
                               the writer result in-place with the corrected text.
             section_type: "highlight" or "summary" — passed to the reviewer.
+            source_evidence: Raw source text used to fact-check the generated content.
+            job_posting: Job posting text passed to the reviewer for relevance checks.
 
         Returns:
             The writer result, potentially patched with reviewer corrections.
@@ -354,6 +375,8 @@ class Pipeline:
             "section_type": section_type,
             "content": content,
             "previous_feedback": "None",
+            "source_evidence": source_evidence,
+            "job_posting": job_posting,
         })
 
         if review.passed:
@@ -403,7 +426,8 @@ class Pipeline:
         # Merge results; fall back to raw data for skipped sections
         self.resume_builder["experiences"] = list(result_map.get("experiences", self.resume_builder["experiences_raw"]))
         self.resume_builder["projects"] = list(result_map.get("projects", self.resume_builder["projects_raw"]))
-        self.resume_builder["skills"] = result_map.get("skills", [])
+        skills_raw_fallback = self._format_skills_raw(self.resume_builder.get("skills_raw", {}))
+        self.resume_builder["skills"] = result_map.get("skills", skills_raw_fallback)
         logger.info(f"Parallel steps done in {time.time() - start_time:.2f}s")
 
     def update_experiences(self):
@@ -432,10 +456,9 @@ class Pipeline:
             self.read_resume()
         self.resume_builder["skills"] = asyncio.run(self._extract_skills_async())
 
-    def update_summary(self):
+    async def _update_summary_async(self):
+        """Async core of update_summary — must be awaited inside an existing event loop."""
         logger.info("=========== Start updating summary ===========")
-        if not self.resume_builder:
-            self.read_resume()
         if "summary" not in self._active_sections():
             logger.info("Summary section skipped (not in ai_config.sections)")
             self.resume_builder["summary"] = self.resume_builder.get("summary_raw", "")
@@ -458,15 +481,52 @@ class Pipeline:
             result.final_answer = corrected_content.strip()
             return result
 
-        result = asyncio.run(self._review_and_correct(
+        source_evidence_summary = "\n".join(
+            self._format_experiences_for_prompt(self.resume_builder["experiences"])
+            + self._format_projects_for_prompt(self.resume_builder["projects"])
+        )
+        result = await self._review_and_correct(
             writer_chain=writer_chain,
             reviewer_chain=reviewer_chain,
             inputs=inputs,
             extract_content=lambda r: r.final_answer,
             apply_correction=apply_summary_correction,
             section_type="summary",
-        ))
+            source_evidence=source_evidence_summary,
+            job_posting=self.parsed_job.get("job_summary", ""),
+        )
         self.resume_builder["summary"] = result.final_answer
+
+    def update_summary(self):
+        """Run the summary update step standalone (e.g. from a notebook or CLI).
+
+        WARNING: Do NOT call this method on a Pipeline instance that has already
+        run update_experiences(), update_projects(), update_skills(), or any other
+        async method via asyncio.run().  The LLM's httpx AsyncClient binds its
+        transport to the first event loop; a second asyncio.run() call (from a
+        different invocation) will see a closed transport and raise
+        "Event loop is closed".
+
+        If you need to run multiple steps on the same instance use the combined
+        coroutine instead:
+            asyncio.run(pipeline._run_parallel_and_summary_async())
+        """
+        logger.info("=========== Start updating summary ===========")
+        if not self.resume_builder:
+            self.read_resume()
+        asyncio.run(self._update_summary_async())
+
+    async def _run_parallel_and_summary_async(self):
+        """Run parallel steps then summary in a single event loop.
+
+        This avoids the 'Event loop is closed' error that occurs when the
+        LLM's httpx AsyncClient is shared across multiple asyncio.run() calls:
+        the client binds its transport to the first loop, which is closed when
+        asyncio.run() returns; a second asyncio.run() then sees a dead transport.
+        Keeping everything in one loop eliminates the problem entirely.
+        """
+        await self._run_parallel_steps()
+        await self._update_summary_async()
 
     def improve_final_resume(self):
         logger.info("=========== Start improving final resume ===========")
@@ -486,13 +546,43 @@ class Pipeline:
         except Exception:
             logger.warning("improve_final_resume parsing failed — skipping (non-fatal)", exc_info=True)
 
+    def _skills_to_frontend_format(self, skills: list) -> dict:
+        """Convert internal category-based skills list to the frontend flat format.
+
+        Internal format: [{"category": "Technical", "skills": [...]}, {"category": "Non-technical", "skills": [...]}]
+        Frontend format: {"technical": [{"name": ...}], "nonTechnical": [{"name": ...}]}
+
+        Deduplication is applied so that duplicate skill names are silently dropped.
+        """
+        _NON_TECHNICAL_NAMES = {"non-technical", "non technical", "nontechnical", "nontech", "soft", "soft skills"}
+
+        technical = []
+        non_technical = []
+        for cat in skills:
+            normalized = cat.get("category", "").lower().replace("-", " ").strip()
+            items = [{"name": s} for s in cat.get("skills", [])]
+            if normalized in _NON_TECHNICAL_NAMES:
+                non_technical.extend(items)
+            else:
+                technical.extend(items)
+
+        # Deduplicate while preserving order
+        seen_tech: dict = {}
+        seen_non_tech: dict = {}
+        return {
+            "technical": [seen_tech.setdefault(i["name"], i)
+                          for i in technical if i["name"] not in seen_tech],
+            "nonTechnical": [seen_non_tech.setdefault(i["name"], i)
+                             for i in non_technical if i["name"] not in seen_non_tech],
+        }
+
     def finalize(self) -> dict:
         self.final_resume = dict(
             basics={**self.resume_builder["basic_info"], "summary": self.resume_builder["summary"]},
             education=self.resume_builder["education"],
             work=self.resume_builder["experiences"],
             projects=self.resume_builder["projects"],
-            skills=self.resume_builder["skills"],
+            skills=self._skills_to_frontend_format(self.resume_builder["skills"]),
             activities={"achievements": self.resume_builder["achievements"]},
         )
         return self.final_resume
@@ -517,10 +607,10 @@ class Pipeline:
         self.read_and_parse_job()
         # Step 2 — read raw resume
         self.read_resume()
-        # Step 3 — parallel: rewrite experiences, projects, extract skills
-        asyncio.run(self._run_parallel_steps())
-        # Step 4 — write summary (depends on Step 3)
-        self.update_summary()
+        # Steps 3+4 — parallel rewrites + summary in a single event loop to avoid
+        # the "Event loop is closed" error when the LLM's httpx AsyncClient is
+        # reused across multiple asyncio.run() calls.
+        asyncio.run(self._run_parallel_and_summary_async())
         # Step 5 — improve final resume
         self.improve_final_resume()
         # Step 6 — finalize and persist

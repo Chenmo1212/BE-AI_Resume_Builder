@@ -456,10 +456,7 @@ def start_task(update_part, resume_id, job_id, task_id, ai_config: dict = None, 
             import asyncio as _asyncio
 
             _check_cancel(cancel_event, task_id, task_manager)
-            _asyncio.run(ai_resume._run_parallel_steps())
-
-            _check_cancel(cancel_event, task_id, task_manager)
-            ai_resume.update_summary()
+            _asyncio.run(ai_resume._run_parallel_and_summary_async())
 
             _check_cancel(cancel_event, task_id, task_manager)
             ai_resume.improve_final_resume()

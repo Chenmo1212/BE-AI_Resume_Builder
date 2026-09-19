@@ -55,6 +55,7 @@ def test_section_highlighter_chain_invokes_with_correct_keys():
         "technical_skills": "Python",
         "non_technical_skills": "Communication",
         "section": "Led backend development of payment system",
+        "revision_instruction": "",
     }
     # Should not raise — chain accepts these keys
     result = chain.invoke(inputs)
@@ -82,6 +83,8 @@ def test_reviewer_chain_invokes_with_correct_keys():
         "section_type": "highlight",
         "content": "Led backend development reducing latency by 40%.",
         "previous_feedback": "None",
+        "source_evidence": "",
+        "job_posting": "",
     })
     assert result is not None
     assert result.passed is True
