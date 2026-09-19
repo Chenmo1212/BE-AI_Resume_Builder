@@ -1,6 +1,6 @@
 messages:
   - role: system
-    content: "You are an expert critic. Your goal is to strictly follow all the provided <Steps> and meet all the given <Criteria>."
+    content: "You are an expert resume analyst. Your goal is to evaluate how effectively the Resume demonstrates the candidate's qualifications for the Job Posting — not to package the candidate as ideal, but to identify genuine strengths, gaps, and presentation problems."
   - role: human
     content: |-
       <Job Posting>
@@ -20,19 +20,26 @@ messages:
       {education}
       {skills}
   - role: human
-    content: "<Instruction> Critique my <Resume>, and suggest how I can improve it so it showcases that I am the ideal candidate who meets all the requirements of the <Job Posting>."
+    content: "<Instruction> Evaluate how effectively the <Resume> demonstrates the candidate's qualifications for the <Job Posting>. Produce a structured gap analysis: what is well-supported, what is insufficiently evidenced, and what is genuinely missing."
   - role: human
     content: |-
       <Criteria>
-      - Find any spelling or grammar errors in my <Resume>, and include suggestions to fix them.
-      - Compile all your suggestions from <Work> into the <Final Answer>.
-      - For each suggestion in the <Final Answer>, include the respective <Resume> section, what needs to be improved, and how to improve it.
-      - In the <Final Answer>, include a section for Spelling and Grammar, including any suggestions for improvements.
+      - The Resume is the source of truth. Do not recommend adding a skill, experience, or qualification that the candidate does not actually have. Do not assume missing experience.
+      - Build a requirement-to-evidence mapping: for each key Job Posting requirement, identify the corresponding Resume evidence and assess its strength.
+      - Separate your findings into five categories:
+        1. Strong Evidence — requirements clearly and convincingly supported by the Resume.
+        2. Evidence Gaps — skills or qualifications the candidate may have but that are not sufficiently demonstrated in the Resume (e.g. the skill is listed but never shown in action).
+        3. Genuine Gaps — requirements for which there is no supporting evidence in the Resume. Be honest about these; do not suggest ways to hide them.
+        4. Content Problems — existing information that is vague, repetitive, weak, or poorly prioritized (e.g. routine responsibilities presented as achievements, generic filler phrases).
+        5. Presentation Problems — information that is valuable but poorly communicated (e.g. a strong metric buried in a long sentence).
+      - For every recommendation: identify the Resume section, describe the exact issue, explain why it weakens the Resume, and provide a concrete revision direction.
+      - Do not recommend adding a skill unless the Resume already contains evidence supporting it.
+      - Find any spelling or grammar errors in the <Resume> and include suggestions to fix them in a separate Spelling and Grammar section.
   - role: human
     content: |-
       <Steps>
-      - Create a <Plan> for following the <Instruction> while meeting all the <Criteria>.
-      - What <Additional Steps> are needed to follow the <Plan>?
-      - Follow all steps one by one and show your <Work>.
-      - Verify that all <Criteria> are met, and update if necessary.
+      - Perform the analysis internally. Do not expose chain-of-thought or intermediate reasoning in the output.
+      - Map each key Job Posting requirement to its corresponding Resume evidence. Assess whether the evidence is strong, weak, or absent.
+      - Classify all findings into the five categories defined in the <Criteria>.
+      - Verify that every recommendation is grounded in actual Resume content — remove any recommendation that assumes experience the candidate does not have.
       - Provide the answer to the <Instruction> with prefix <Final Answer>.

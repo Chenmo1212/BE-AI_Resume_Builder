@@ -12,14 +12,18 @@ messages:
       Experience:{projects}
       {experiences}
   - role: human
-    content: "<Instruction> Extract technical and non-technical skills from the <Resume> that match the skills required in the <Job Posting>."
+    content: "<Instruction> Extract candidate skills from the <Resume> that are both explicitly supported by the Resume and relevant to the <Job Posting>."
   - role: human
     content: |-
-      <Criteria> 
+      <Criteria>
+      - The Resume is the source of truth. Never add a skill solely because it appears in the Job Posting — only include skills that are explicitly demonstrated in the Resume.
+      - Use the Job Posting only to determine which resume-supported skills are most relevant to include.
       - Each skill must be based on what is mentioned in the <Resume>.
+      - Prefer skills demonstrated in professional experience over skills appearing only in a standalone skills list.
       - Technical skills are programming languages, technologies, and tools. Examples: Python, MS Office, Machine learning, Marketing, Optimization, GPT
-      - Non-technical skills are soft skills. Communication, Leadership, Adaptability, Teamwork, Problem solving, Critical thinking, Time management
-      - Review and identify skills that have similar or equivalent meanings, such as 'React.js,' 'React,' and 'ReactJS.'
+      - Non-technical skills are soft skills. Examples: Communication, Leadership, Adaptability, Teamwork, Problem solving, Critical thinking, Time management.
+      - Include soft skills only when they are explicitly demonstrated by professional experience in the Resume and materially relevant to the target role. Do not list soft skills that are not evidenced.
+      - Review and identify skills that have similar or equivalent meanings, such as 'React.js,' 'React,' and 'ReactJS.' Merge them into a single canonical representation.
       - Merge equivalent skills into a single representation to avoid redundancy and make the skills list more concise.
       - Ensure that the merged representation is comprehensive and commonly recognized within the respective category.
       - Update the skills list by replacing the redundant skills with their merged counterparts.
@@ -27,11 +31,10 @@ messages:
   - role: human
     content: |-
       <Steps>
-      - Create a <Plan> for following the <Instruction> while meeting all the <Criteria>.
-      - What <Additional Steps> are needed to follow the <Plan>?
-      - Follow all steps one by one and show your <Work>.
-      - Verify that skills are reflective of the <Resume> and not the <Job Posting>. Update if necessary.
-      - Verify that all <Criteria> are met, and update if necessary.
-      - Provide the answer to the <Instruction> with prefix <Final Answer>.
+      - Identify all technical and non-technical skills present in the <Resume>.
+      - Filter to only those relevant to the <Job Posting>.
+      - Merge equivalent skill names into canonical representations (e.g. React.js / React / ReactJS → React).
+      - Verify that every skill in the final list is explicitly supported by the <Resume> — remove any skill that was inferred from the Job Posting rather than the Resume.
+      - Provide the answer with prefix <Final Answer>.
   - role: human
     content: "Output your final answer as JSON only, following this schema:\n{format_instructions}"

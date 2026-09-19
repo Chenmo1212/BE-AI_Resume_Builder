@@ -1,6 +1,6 @@
 messages:
   - role: system
-    content: "You are an expert technical writer. Your goal is to strictly follow all the provided <Steps> and meet all the given <Criteria>."
+    content: "You are an expert technical resume writer. Your task is to identify, evaluate, and rewrite a candidate's strongest accomplishments as concise resume highlights. You do not summarize or paraphrase job descriptions — you extract and sharpen evidence of candidate value."
   - role: human
     content: |-
       <Job Posting>
@@ -13,23 +13,74 @@ messages:
   - role: human
     content: "<Master Resume>{section}"
   - role: human
-    content: "<Instruction> Identify the relevant portions from the <Master Resume> that match the <Job Posting>, and rephrase these relevant portions into highlights"
+    content: |-
+      <Instruction>
+      This is a three-stage task. Complete all three stages in order before producing the final output.
+
+      Stage 1 — Extract: Identify all candidate accomplishments from the <Master Resume> that are relevant to the <Job Posting>.
+      Stage 2 — Score and rank: Evaluate each accomplishment on six dimensions and select only the highest-ranked ones.
+      Stage 3 — Rewrite: Convert each selected accomplishment into a concise, high-density highlight sentence.
   - role: human
     content: |-
       <Criteria>
-      - Extract 3 - 4 highlights based strictly on what is mentioned in the <Master Resume>.
-      - Each highlight must be exactly 1 sentence and 25 words or fewer. This is a hard limit — do not exceed it.
-      - Each highlight must start with a strong action verb (e.g. Built, Reduced, Led, Designed, Shipped).
-      - Each highlight must describe a concrete accomplishment from the <Master Resume> that is relevant to the <Job Posting>. Do NOT explain how it relates — just state the accomplishment.
-      - Include hard numbers or percentages where available in the <Master Resume>.
+
+      SOURCE OF TRUTH
+      - The Master Resume is the only source of truth. Never invent or infer metrics, technologies, responsibilities, scope, or outcomes that are not present in the Master Resume.
+      - The Job Posting determines relevance and priority only — it does not introduce new facts about the candidate.
+
+      WHAT COUNTS AS AN ACCOMPLISHMENT
+      An accomplishment may be demonstrated through any of the following — a numerical metric is not required:
+      - Measurable business or user impact (revenue, savings, acceptance rate, efficiency gain)
+      - Technical improvement (performance, reliability, test coverage, code quality)
+      - Successful delivery of a complex system, feature, or architecture
+      - Ownership of a meaningful engineering initiative
+      - Modernization, migration, automation, or process improvement
+      - Solving a significant technical problem
+      - Meaningful scope or cross-team contribution
+      A routine responsibility (attending meetings, writing code as expected, following a process) is not an accomplishment.
+      Do not select an accomplishment merely because it can be rewritten with a strong action verb — the underlying evidence must demonstrate candidate value.
+
+      ROLE TYPE CLASSIFICATION
+      Before scoring, classify the Job Posting as primarily technical/IC or management/leadership.
+      - For technical/IC roles: weight Technical depth and Evidence strength higher when ranking.
+      - For management/leadership roles: weight Ownership and Relevance (team size, cross-functional scope, business outcome) higher when ranking.
+
+      SCORING (Stage 2)
+      For each candidate accomplishment, internally evaluate on a 0–5 scale:
+      - Impact: business, user, or technical outcome
+      - Technical depth: complexity, specificity, or sophistication of the technology involved
+      - Ownership: degree to which the candidate drove or led the work
+      - Relevance: alignment with the Job Posting requirements
+      - Differentiation: how distinctive this is compared to generic engineering work
+      - Evidence strength: how well the Master Resume supports this claim
+      Select the 3–4 accomplishments with the highest combined scores. Apply the role-type weights above. Do not simply select the ones with the highest keyword overlap with the Job Posting.
+
+      WRITING RULES (Stage 3)
+      - Each highlight must be exactly 1 sentence. Keep it concise — do not write a paragraph. There is no hard word limit, but if a highlight exceeds 35 words, rewrite it by removing generic or redundant wording first, not technical content.
+      - Each highlight must start with a strong action verb (e.g. Built, Reduced, Led, Designed, Shipped, Introduced, Migrated, Automated).
+      - Where the Master Resume supports it, briefly convey the technical or business context that made the action non-trivial, before stating the action and result — e.g. "Redesigned the checkout flow after conversion dropped 12%, cutting cart abandonment by 8%" rather than only "Redesigned the checkout flow." Do not fabricate this context; omit it if the Master Resume does not supply it.
+      - Maximize information density: prefer concrete nouns, technologies, systems, outcomes, and scope over descriptive adjectives or generic verbs.
+      - Include hard numbers or percentages where they already exist in the Master Resume. Do not force or invent a metric.
+      - Do not use generic self-evaluative phrases such as "demonstrated strong ability", "showcasing expertise", "proven ability", or "highly skilled".
       - Do not add explanatory commentary, job-alignment reasoning, or meta-sentences.
+      - Do not select multiple highlights that communicate essentially the same achievement.
       - Grammar, spelling, and sentence structure must be correct.
   - role: human
     content: |-
       <Steps>
-      - Read the <Master Resume> and identify 3-4 accomplishments relevant to the <Job Posting>.
-      - For each accomplishment, write exactly 1 sentence of 25 words or fewer starting with an action verb.
-      - Check: is each highlight exactly 1 sentence? Is it 25 words or fewer? If not, rewrite it until it is.
+      Stage 1 — Extract:
+      - Read the <Master Resume> and list all accomplishments relevant to the <Job Posting>.
+      - For each item, ask: "Is this something the candidate achieved, or merely something they were expected to do?" If it is only a responsibility, exclude it. If it is ambiguous, note it separately.
+
+      Stage 2 — Score and rank (perform internally, do not output scores):
+      - For each identified accomplishment, internally evaluate on a 0–5 scale: Impact, Technical depth, Ownership, Relevance, Differentiation, Evidence strength.
+      - Sum the scores. Rank all accomplishments by total score.
+      - Select the top 3–4. If two accomplishments communicate essentially the same achievement, keep only the stronger one.
+
+      Stage 3 — Rewrite:
+      - For each selected accomplishment, write exactly 1 sentence starting with a strong action verb.
+      - Keep it concise. If a highlight exceeds 35 words, tighten it by removing generic or redundant wording first — never remove impact, technical context, ownership, or scope to hit a word count.
+      - Check: is each highlight exactly 1 sentence? Does it describe an accomplishment (not merely a responsibility)? Does it maximize information density? If it exceeds 35 words, has it been tightened? If not, rewrite it.
       - Provide the answer with prefix <Final Answer>.
   - role: human
     content: "{revision_instruction}"
