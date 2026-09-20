@@ -40,9 +40,18 @@ class Pipeline:
         self.ai_config: dict = dict(ai_config) if ai_config else {}
 
         # Pop sensitive fields immediately so they never appear in logs or DB writes.
+        # Accept both camelCase (from frontend) and snake_case.
         # Treat empty string as "not provided".
-        _api_key = self.ai_config.pop("api_key", None) or None
-        _base_url = self.ai_config.pop("base_url", None) or None
+        _api_key = (
+            self.ai_config.pop("api_key", None)
+            or self.ai_config.pop("apiKey", None)
+            or None
+        )
+        _base_url = (
+            self.ai_config.pop("base_url", None)
+            or self.ai_config.pop("baseUrl", None)
+            or None
+        )
 
         provider = self.ai_config.get("provider")
         model = self.ai_config.get("model", openai_model_name)

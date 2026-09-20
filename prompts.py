@@ -10,11 +10,10 @@ from pydantic import BaseModel, Field
 load_dotenv()
 logger = logging.getLogger(__name__)
 
-if "OPENAI_API_KEY" not in os.environ:
-    raise EnvironmentError(
-        "OPENAI_API_KEY is not set. "
-        "Please set it as an environment variable before starting the application."
-    )
+# OPENAI_API_KEY can be provided dynamically per request via ai_config.
+# Fallback check is handled at LLM invocation time in llm/factory.py.
+if "OPENAI_API_KEY" not in os.environ and "DEEPSEEK_API_KEY" not in os.environ:
+    logger.warning("No default LLM API keys set in environment. Expecting per-request keys in ai_config.")
 
 
 def format_list_as_string(l: list, list_sep: str = "\n- ") -> str:

@@ -46,4 +46,8 @@ tzlocal==5.3.1
 urllib3==2.6.3
 uuid_utils==0.15.0
 zstandard==0.25.0
+gunicorn==23.0.0
 ruamel.yaml==0.19.1
+Flask==3.1.0
+Flask-Cors==5.0.0
+python-dateutil==2.9.0.post0
